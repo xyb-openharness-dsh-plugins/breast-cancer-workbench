@@ -1,0 +1,16 @@
+node_modules/
+*.tgz
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+.DS_Store
+/tmp
+/tmp-*
+coverage/
+
+# 本地密钥（MinerU Token 等），永不进仓库
+.secrets/
+
+# 项目工作数据（截图、会话记录），不进仓库；不要删这个目录
+.workbuddy/

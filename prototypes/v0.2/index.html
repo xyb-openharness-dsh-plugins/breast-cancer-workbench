@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>小粉宝 PinkyPal · 全病程工作台原型 v0.2</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#main">跳到主要内容</a>
+<div class="prototype-bar"><span><b>交互原型 v0.2</b> · 已被 v0.3 取代（本版未获签认）</span><span>请以 prototypes/v0.3 为准</span></div>
+<div class="workspace">
+  <aside class="sidebar" aria-label="小粉宝业务导航">
+    <div class="brand"><img src="../../assets/brand/pinkypal-logo-original.jpg" alt="PinkyPal 小粉宝，乳腺肿瘤患者 AI 助手"><div><strong>小粉宝</strong><span>PinkyPal · 陪你慢慢来</span></div></div>
+    <button class="profile profile-btn" data-action="profiles" aria-label="切换演示档案，当前为林女士">
+      <div class="avatar" id="profile-avatar" aria-hidden="true">林</div>
+      <div><b id="profile-name">林女士的资料</b><span id="profile-meta">模拟档案 · 本人视角</span></div>
+      <span class="profile-caret" aria-hidden="true">⌄</span>
+    </button>
+    <nav id="nav"></nav>
+    <div class="sidebar-bottom"><span class="eyebrow">小 X 宝家族</span><p>记录可以少一点，<br>陪伴可以久一点。</p><button class="text-button" data-action="help">原型操作说明 ↗</button></div>
+  </aside>
+  <div class="work-area">
+    <header class="topbar">
+      <div class="breadcrumb">小粉宝工作台 <span>/</span> <b id="breadcrumb">看板</b></div>
+      <div class="top-actions">
+        <span class="status"><i></i>模拟资料目录</span>
+        <button class="status" data-action="agent"><i class="grey"></i>会话未接入</button>
+        <button data-action="settings" aria-label="打开设置：工作区目录、文档解析、临床数据库">设置</button>
+        <button id="font-toggle" aria-pressed="false" title="切换大字">大字 Aa</button>
+      </div>
+    </header>
+    <main id="main" tabindex="-1"></main>
+    <footer class="footer">小粉宝 · 与患者和照护者一起整理、理解、准备沟通 <span>设计草案 v0.2，等待你的反馈</span></footer>
+  </div>
+</div>
+<dialog id="dialog" aria-labelledby="dialog-title">
+  <div class="dialog-head"><div><span class="eyebrow" id="dialog-eyebrow">小粉宝</span><h2 id="dialog-title"></h2></div><button class="icon-button" data-action="close" aria-label="关闭弹窗">×</button></div>
+  <div id="dialog-body" class="dialog-body"></div>
+  <div id="dialog-foot" class="dialog-foot"></div>
+</dialog>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+<script src="app.js"></script>
+</body></html>

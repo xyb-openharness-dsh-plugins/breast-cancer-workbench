@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "wb-xyb-openharness-dsh-plugins-xfb-workbench",
+  "title": "小粉宝",
+  "description": "把散落的检查、用药与康复记录整理成可核对、可回溯的资料，并整理成就诊时能带着走的问题清单。",
+  "version": "0.5.1",
+  "entry": "./lib/client.js",
+  "compatibility": {
+    "desktopWorkbenches": "^0.1.0",
+    "harness": "^0.1.5-rc.2"
+  },
+  "capabilities": [
+    "local-data",
+    "iframe-panel",
+    "native-conversation-draft"
+  ]
+}
