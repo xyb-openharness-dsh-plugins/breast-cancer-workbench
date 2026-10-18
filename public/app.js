@@ -42,8 +42,9 @@ function setupPage(error = null) {
       <div style="margin-top:16px">
         <span class="form-label">资料目录的完整路径</span>
         <div class="path-row"><input id="ws-path" placeholder="/Users/你的名字/Documents/PinkyPal" spellcheck="false" autofocus>
-          ${btn('浏览…', 'browse-dirs', 'soft')}
+          ${btn('本机选择…', 'pick-native', 'soft')}
           <label class="checkbox-line" style="margin:0"><input type="checkbox" id="ws-create" checked><span>不存在就新建</span></label></div>
+        <p class="small-note" style="margin-top:6px">也可以手输完整路径，或${btn('网页逐层浏览', 'browse-dirs', 'text-link text-button')}。</p>
       </div>
       <div class="form-actions" style="margin-top:16px">${btn('打开这个目录', 'set-workspace', 'primary')}</div>
       <p class="small-note">拒绝：根目录、用户主目录、桌面根目录、系统目录。选错会给出可读原因，不会静默失败。</p>
@@ -62,6 +63,16 @@ function paintNav() {
     const badge = navBadge(id)
     return `<button class="nav-button" data-action="go" data-page="${id}" ${S.page === id ? 'aria-current="page"' : ''}>${icon(ic)}<span>${label}</span>${badge ? `<span class="nav-count">${badge}</span>` : ''}</button>`
   }).join('')
+
+  // 窄空间把一级、二级都提升到顶部：一级一行、二级独占下一行。
+  // 宽空间仍由页面内容区保留二级标签，避免改变已验收的大屏工作流。
+  const dock = $('#subnav-dock')
+  if (!dock) return
+  const items = SUBPAGES[S.page] ?? []
+  const selected = S.sub[S.page] || items[0]
+  dock.innerHTML = items.length
+    ? `<div class="nav-subrow" role="tablist" aria-label="${PAGES.find((p) => p[0] === S.page)?.[1] ?? ''}二级页面">${items.map((item) => `<button role="tab" aria-selected="${selected === item}" data-action="sub" data-sub="${esc(item)}">${esc(item)}</button>`).join('')}</div>`
+    : ''
 }
 
 function navBadge(id) {
@@ -418,13 +429,13 @@ async function renderDirView(path) {
     toast(error.message)
     return
   }
-  const item = (label, target, cls = 'dir-item') =>
-    `<button type="button" class="${cls}" data-dirgo="${esc(target)}"><span>${esc(label)}</span><small>›</small></button>`
-  openModal('选择资料目录', `
+  const item = (label, target, cls = 'dir-item', ic = '📁') =>
+    `<button type="button" class="${cls}" data-dirgo="${esc(target)}"><span>${ic ? `${ic} ` : ''}${esc(label)}</span><small>›</small></button>`
+  openModal('选择资料目录（网页浏览）', `
     <div class="dir-crumb"><code>${esc(data.current)}</code></div>
     <div class="dir-shortcuts">
-      ${item('🏠 家目录', data.shortcuts.home, 'dir-up')}
-      ${data.parent ? item('← 上一级', data.parent, 'dir-up') : ''}
+      ${item('家目录', data.shortcuts.home, 'dir-up', '🏠')}
+      ${data.parent ? item('上一级', data.parent, 'dir-up', '←') : ''}
     </div>
     <div class="dir-list">
       ${data.entries.map((e) => item(e.name, e.path)).join('')}
@@ -443,6 +454,21 @@ async function renderDirView(path) {
 }
 
 const actions = {
+  // 原生目录选择器：macOS choose folder 对话框；不支持或失败时退回网页浏览。
+  'pick-native': async () => {
+    let result = null
+    try {
+      result = await api('/api/fs/pick', { method: 'POST' })
+    } catch {
+      void renderDirView(inputValue('#ws-path').trim())
+      return
+    }
+    if (result?.picked) {
+      const input = $('#ws-path')
+      if (input) input.value = result.picked
+      toast(`已选择：${result.picked}`)
+    } // canceled：用户关掉了对话框，不打扰
+  },
   'browse-dirs': () => { void renderDirView(inputValue('#ws-path').trim()) },
   go: (el) => navigate(el.dataset.page, el.dataset.sub),
   sub: (el) => { S.sub[S.page] = el.dataset.sub; rerender() },
@@ -454,6 +480,20 @@ const actions = {
   session: sessionModal,
   profile: profileModal,
   'switch-profile': profileModal,
+
+  'load-demo-showcase': async () => {
+    toast('正在加载完整示例…')
+    const result = await guarded(() => api('/api/demo/seed', { method: 'POST', body: { id: 'DEMO-1', activate: true } }))
+    if (!result) return
+    resetBoot()
+    await boot()
+    S.page = 'timeline'
+    S.sub.timeline = ''
+    S.pin = null
+    S.sel = []
+    navigate('timeline')
+    toast('已加载完整示例；现在可以查看病情一图秀')
+  },
 
   'use-subject': async (el) => {
     const id = el.dataset.id

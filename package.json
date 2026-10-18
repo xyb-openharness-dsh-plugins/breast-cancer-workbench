@@ -1,6 +1,6 @@
 {
   "name": "@pinkypal-dsh/breast-cancer-workbench",
-  "version": "0.5.1",
+  "version": "0.5.3",
   "description": "小粉宝：本机优先的乳腺癌病程整理与就诊准备工作台",
   "private": true,
   "type": "module",

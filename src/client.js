@@ -138,12 +138,15 @@
         const [generation, setGeneration] = React.useState(0)
         const [broken, setBroken] = React.useState(false)
         const [note, setNote] = React.useState('')
+        const brokenTimer = React.useRef(null)
 
         // 8 秒内没有 onLoad 就当作没起来：宁可给一个能重试的提示，也不留一块白板。
+        // onLoad 成功后必须清掉这个定时器——否则页面加载完 8 秒后整个面板被换成
+        // 兜底页，正在用的弹窗会凭空消失（0.5.1 真机实测踩过）。
         React.useEffect(() => {
           setBroken(false)
-          const timer = setTimeout(() => setBroken(true), 8000)
-          return () => clearTimeout(timer)
+          brokenTimer.current = setTimeout(() => setBroken(true), 8000)
+          return () => clearTimeout(brokenTimer.current)
         }, [generation])
 
         // 挂载后开始消化未送达的开场白（composer 就绪一轮一次），并订阅会话变化。
@@ -182,7 +185,7 @@
           h('div', { style: barStyle },
             h('button', { type: 'button', style: buttonStyle, onClick: openAgent }, 'AI 协助'),
             h('span', { style: { color: '#8a6b76' } },
-              '新建/打开原生会话并把开场白填进草稿（不自动发送）；面板的开合与拖宽用右侧边条。'),
+              '调起右侧原生会话并把开场白填进草稿（不自动发送）。'),
             note && h('span', { style: { color: '#a4506b', fontWeight: 600 } }, note),
           ),
           h('iframe', {
@@ -191,7 +194,7 @@
             title: `${TITLE} · ${SUBTITLE}`,
             style: frameStyle,
             sandbox: 'allow-scripts allow-same-origin allow-forms allow-downloads',
-            onLoad: () => setBroken(false),
+            onLoad: () => { setBroken(false); clearTimeout(brokenTimer.current) },
           }),
         )
       }

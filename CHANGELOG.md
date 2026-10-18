@@ -3,6 +3,25 @@
 规则：涨版本先改 `VERSION`，再在本文顶部加一条（日期 + 版本 + 一句话 + 影响面）。
 `npm run check` 会拦住"改了版本没记录"和"记录了没改版本"两种漏（见 [VERSIONING](docs/VERSIONING.md)）。
 
+## 0.5.3 — 2026-10-18（窄空间顶部双层导航 + 模拟数据快捷预览）
+
+**一句话**：窄空间不再把一级、二级导航挤在侧栏里；改为顶部两行导航，并在空看板提供一键加载完整模拟数据后直达「病情一图秀」。
+
+- **窄空间导航**：宽度不超过 900px 时，一级模块放在顶部第一行横向滚动区；当前模块的二级页面独占第二行，选中态独立呈现。内容区原有二级标签在该断点隐藏，避免重复和竖向挤压；宽屏交互保持不变。
+- **模拟数据入口**：空看板增加「加载完整示例」按钮，调用既有 DEMO-1 受 manifest 保护的种子数据，激活独立模拟档案后直达「病情一图秀」。不写入真实档案；已有 DEMO-1 时按既有覆盖语义重建，不叠加记录。
+- **一图秀空态说人话（真机反馈）**：所选指标在整个工作区里一次记录都没有时，明确写「画不出曲线是没有数据，不是界面故障」，并在原地给「加载完整示例」与「去指标检测补录」两个入口；一条指标都没选时也单独提示。有记录但不在时间窗的提示保持不变。
+- **验证说明**：语法、冻结合同、文案与密钥检查均通过；163 条单测在干净环境（清空宿主注入的 `NODE_OPTIONS` 后）全绿。此前 11 个失败是 WorkBuddy 运行环境的批量删除保护（`SAFE_DELETE_BULK_CONFIRM_REQUIRED`）拦下测试临时目录清理所致，与代码无关。
+
+## 0.5.2 — 2026-10-18（真机反馈第二轮：原生目录选择器 + 弹窗自消失修复）
+
+**一句话**：目录选择改为 macOS 原生对话框（osascript `choose folder`）；修掉「弹窗不到 5 秒凭空消失」的定时器 bug；网页浏览降为回退并修样式。
+
+- **修弹窗自消失（真 bug）**：Panel 的 8 秒兜底定时器在 iframe 加载成功后**没有清除**，挂载 8 秒后整个面板被换成兜底页——正在用的弹窗随之消失（用户看到"5 秒不到就跳出"）。修：onLoad 里 `clearTimeout(brokenTimer)`，`src/client.js` 与生成物同步。
+- **原生目录选择器**：新增 `POST /api/fs/pick`——macOS 上由本机 `osascript choose folder` 弹出**系统原生**选择对话框；用户取消（-128）安静返回不报错；非 macOS 返回 501，前端自动退回网页逐层浏览。原生选择器是交互对话框，未自动化测试（会真弹窗），人工验证。
+- **样式**：网页浏览弹窗修丑——文件夹 📁 图标、行高收紧、列表底色与 46vh 上限、空名目录过滤（服务端 `d.name.trim()`）。
+- **AI 会话面板的开合/拖宽（如实说明）**：从 DSH Desktop 安装包反查，`desktopWorkbenches` 服务只暴露 register/ensureSession/isActive/ownsSession/currentSession/subscribe，**没有**面板拖宽或关闭的编程接口（无 setBusinessWidth/togglePane）；`businessWidth` 是 register 时的静态布局。因此：打开=工作台「AI 协助」按钮（ensureSession）；关闭与拖宽只能用原生会话面板自带控件，若该 Desktop 版本未提供，属宿主限制，工作台不伪装支持。
+- 验证：163 条单测全绿；npm pack 49 files / 517.4 kB；已 remove+add 装入 Desktop 真身 profile 并核对副本。
+
 ## 0.5.1 — 2026-10-18（真机首装反馈修复 + Desktop 1.2.2 会话集成）
 
 **一句话**：修掉真机首装暴露的「工作台没能连上本机服务 not found」（CSP 拦内联 boot 脚本），按 Desktop 1.2.2 与门店选址官方样例补齐注册与会话集成；业务区移到左侧、原生 Agent 会话在右侧。
@@ -13,7 +32,8 @@
 - **会话集成**（官方 dsh-site-selection 同款 API）：`ensureSession({folder})` 调起原生会话并打开；开场白经 `sessions.scope(id).get('conversation').input` 填进**原生草稿，不自动发送**（composer 未就绪轮询重试、localStorage 持久化）；isActive/ownsSession/currentSession 判定齐备，宿主服务缺位一律降级提示不猜第二入口。面板顶栏新增「AI 协助」按钮。
 - **新增 `workbench.json`**（schemaVersion 1）：`wb-xyb-openharness-dsh-plugins-xfb-workbench` 身份、entry、compatibility、capabilities；进 npm files。
 - `/api/health` 增加 `dir`（面板调起会话时作为 folder 用）。
-- 验证：`npm run check` 161 条全绿；npm pack 49 files / 515.4 kB；已按 remove+add 装入 Desktop 真身 profile（`~/Library/Application Support/dsh-desktop/harness/profiles/web`），副本含会话集成代码。
+- **目录浏览点选（真机反馈）**：首次进入页与设置页的路径输入框旁新增「浏览…」——iframe 里拿不到系统原生目录选择器，走本机服务端只读接口 `GET /api/fs/dirs`（只列子目录名、跳过隐藏项、上限 500、不读文件内容；不要求已选资料目录），前端弹窗逐层点选、「家目录/上一级」快捷、选完回填输入框。目录不存在给可读 404（`DIR_NOT_FOUND`）、文件路径报 `NOT_A_DIR`。+2 条单测（163 条全绿）。
+- 验证：`npm run check` 163 条全绿；npm pack 49 files / 516.6 kB；已按 remove+add 装入 Desktop 真身 profile（`~/Library/Application Support/dsh-desktop/harness/profiles/web`），副本含会话集成代码。
 - 未实测：Desktop 实机里「AI 协助」调起、开场白填草稿、右侧面板拖宽（需用户重启 Desktop 人工确认）。
 
 ## 0.5.0 — 2026-10-18（M5 宿主接入，可打包安装）

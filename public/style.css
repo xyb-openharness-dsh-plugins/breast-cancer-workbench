@@ -51,6 +51,7 @@ small{font-size:12px;color:var(--muted)}
 .profile b{display:block;font-size:12.5px;line-height:1.4}
 .profile span{display:block;font-size:10.5px;color:var(--muted)}
 #nav{display:flex;flex-direction:column;gap:3px}
+#subnav-dock{display:none}
 .nav-button{display:flex;align-items:center;gap:10px;width:100%;min-height:42px;padding:8px 11px;border:0;background:transparent;border-radius:11px;font-size:13.5px;color:var(--ink-2);text-align:left;position:relative}
 .nav-button:hover{background:#fdf3f6}
 .nav-button[aria-current="page"]{background:var(--pink-soft);color:var(--pink-deep);font-weight:600}
@@ -339,13 +340,20 @@ dialog::backdrop{background:rgba(51,42,48,.35);backdrop-filter:blur(2px)}
   .workspace{grid-template-columns:minmax(0,1fr)}
   .sidebar,.work-area{min-width:0}
   #nav{min-width:0}
-  .sidebar{border-right:0;border-bottom:1px solid var(--line);padding:12px 16px}
-  .brand{padding:0;margin-bottom:10px}
+  .sidebar{border-right:0;border-bottom:1px solid var(--line);padding:12px 16px;gap:8px}
+  .brand{padding:0;margin-bottom:2px}
   .profile,.sidebar-bottom{display:none}
-  #nav{flex-direction:row;overflow-x:auto;gap:4px}
+  /* 窄空间：一级一行，二级独占下一行；不把两级混在同一条横滚条里。 */
+  #nav{flex-direction:row;overflow-x:auto;gap:4px;padding-bottom:1px}
   .nav-button{width:auto;white-space:nowrap;min-height:38px;padding:7px 11px}
   .nav-button[aria-current="page"]::before{display:none}
   .nav-button .nav-count{display:none}
+  #subnav-dock{display:block;min-width:0;overflow-x:auto;border-top:1px solid #f4eaee;padding-top:7px}
+  .nav-subrow{display:flex;gap:5px;min-width:max-content}
+  .nav-subrow button{min-height:32px;padding:4px 10px;border-radius:20px;background:#fff;border:1px solid var(--line);font-size:11.5px;color:var(--ink-2);white-space:nowrap}
+  .nav-subrow button[aria-selected="true"]{background:var(--pink-soft);border-color:#efc6d4;color:var(--pink-deep);font-weight:600}
+  /* 顶部二级导航已呈现同一组页面标签，内容区不重复显示。 */
+  #main>.page-enter>.subnav{display:none}
   .topbar{padding:11px 16px;position:static;gap:10px;flex-wrap:wrap}
   /* 状态按钮现在是功能入口（资料目录 / 对话）：窄屏收紧字号，但标签必须留着，否则分不清是哪一个 */
   .top-actions{gap:6px;flex-wrap:wrap}
@@ -488,6 +496,10 @@ dialog::backdrop{background:rgba(51,42,48,.35);backdrop-filter:blur(2px)}
 .banner{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 13px;margin-bottom:14px;font-size:12px}
 .banner.warn{background:var(--warn-bg);border-color:#f3e2c4}
 .banner.rose{background:var(--pink-soft);border-color:#f7dbe5}
+.demo-cta{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;background:linear-gradient(135deg,#fff0f5,#fffaf3);border:1px solid #f3d4df;border-radius:14px;padding:15px 17px;margin-bottom:16px}
+.demo-cta b{display:block;font-size:14px;margin-top:1px}
+.demo-cta p{font-size:11.5px;margin-top:3px;max-width:56ch}
+.demo-cta .primary{white-space:nowrap}
 .tabs-mini{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:12px}
 .tabs-mini button{min-height:32px;font-size:12px;padding:4px 11px;border-radius:20px;background:#fff;border:1px solid var(--line);color:var(--ink-2)}
 .tabs-mini button[aria-pressed=true]{background:#3b2f36;color:#fff;border-color:#3b2f36}
@@ -497,6 +509,8 @@ dialog::backdrop{background:rgba(51,42,48,.35);backdrop-filter:blur(2px)}
 .setup .path-row .checkbox-line{flex:0 0 auto;white-space:nowrap;align-items:center}
 .setup .path-row .checkbox-line input{margin-top:0}
 @media(max-width:600px){
+  .demo-cta{align-items:flex-start;padding:14px}
+  .demo-cta .primary{width:100%}
   .import-box{grid-template-columns:minmax(0,1fr)}
   .q-item{flex-wrap:wrap}
   .kv{grid-template-columns:96px minmax(0,1fr)}
@@ -510,10 +524,11 @@ dialog::backdrop{background:rgba(51,42,48,.35);backdrop-filter:blur(2px)}
 .dir-shortcuts{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
 .dir-shortcuts .dir-up{border:1px solid var(--line);background:#fff;color:var(--ink,#3d2b33);border-radius:8px;
   padding:6px 12px;font:inherit;font-size:12px;cursor:pointer}
-.dir-list{display:flex;flex-direction:column;gap:2px;margin-top:10px;max-height:320px;overflow-y:auto;
-  border:1px solid var(--line);border-radius:10px;padding:4px}
+.dir-list{display:flex;flex-direction:column;gap:1px;margin-top:10px;max-height:46vh;overflow-y:auto;
+  border:1px solid var(--line);border-radius:10px;padding:4px;background:#fff}
 .dir-item{display:flex;justify-content:space-between;align-items:center;gap:10px;border:0;background:transparent;
-  color:inherit;font:inherit;font-size:13px;text-align:left;padding:8px 10px;border-radius:8px;cursor:pointer}
+  color:inherit;font:inherit;font-size:13px;line-height:1.4;text-align:left;padding:7px 10px;border-radius:8px;cursor:pointer}
+.dir-item span{display:flex;align-items:center;gap:7px;min-width:0}
 .dir-item:hover{background:#fdf0f4}
 .dir-item small{color:var(--muted);flex:0 0 auto}
-.dir-item span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dir-item span b{font-weight:400;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

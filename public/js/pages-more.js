@@ -449,7 +449,8 @@ export function settingsBody(tab = 'store', pendingPath = '') {
   </div>
   <div style="margin-top:14px">
     <span class="form-label">换一个资料目录</span>
-    <div class="path-row"><input id="ws-path" placeholder="/Users/你的名字/Documents/PinkyPal" value="${esc(pendingPath)}" spellcheck="false">${btn('浏览…', 'browse-dirs', 'soft')}<label class="checkbox-line" style="margin:0"><input type="checkbox" id="ws-create" checked><span>目录不存在时按这个路径新建</span></label>${btn('打开 / 新建', 'set-workspace', 'primary')}</div>
+    <div class="path-row"><input id="ws-path" placeholder="/Users/你的名字/Documents/PinkyPal" value="${esc(pendingPath)}" spellcheck="false">${btn('本机选择…', 'pick-native', 'soft')}<label class="checkbox-line" style="margin:0"><input type="checkbox" id="ws-create" checked><span>目录不存在时按这个路径新建</span></label>${btn('打开 / 新建', 'set-workspace', 'primary')}</div>
+    <p class="small-note" style="margin-top:6px">也可以手输完整路径，或${btn('网页逐层浏览', 'browse-dirs', 'text-link text-button')}。</p>
     <p class="small-note">拒绝规则：根目录、用户主目录、桌面根目录、系统目录。拒绝时会给出可读原因，不会静默失败。</p>
   </div>
   <div class="divider"></div>

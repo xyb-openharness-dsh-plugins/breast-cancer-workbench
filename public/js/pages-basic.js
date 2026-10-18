@@ -97,6 +97,7 @@ export function dashboard() {
   if (!hasAnything) {
     return `${head('今天，先照顾眼前的一件事。', SUBTITLES.dashboard, btn(`当前阶段：${stage?.label ?? '未选择'}`, 'stage-pick', 'soft'))}
       ${demoBanner()}
+      <section class="demo-cta" aria-label="模拟数据入口"><div><span class="eyebrow">先看看效果</span><b>加载一套模拟数据</b><p>会创建独立的演示档案，并自动打开「病情一图秀」。不写入你的真实档案。</p></div>${btn('加载完整示例', 'load-demo-showcase', 'primary')}</section>
       <section class="card" style="padding:26px">
         <h2>从三条里选一条，不需要都做完</h2>
         <p style="margin-top:6px;font-size:12.5px">空着也能用：不填资料、不导入报告，同样可以记录。</p>
@@ -428,12 +429,25 @@ export function chartPanel() {
   const series = selectedSeries()
   const treatments = d().clinical?.treatments ?? []
   const fallback = d().overview?.newestRecordAt?.slice(0, 10) ?? null
+  /* 空态分三种说清楚，避免"图没出来"被当成界面坏了：
+   * ① 一条指标都没选；② 选了但整个工作区一次记录都没有（截图真机反馈）；
+   * ③ 有记录但不在当前时间窗（timelineChart 自己的提示）。 */
+  const demoActions = `${btn('加载完整示例', 'load-demo-showcase', 'primary')}${go('去指标检测补录 →', 'records', '指标检测', 'soft')}`
+  let chartBody
+  if (!series.length) {
+    chartBody = empty('还没有选择指标', '在左侧勾选最多 4 个指标；还没有记录时，也可以先加载一套模拟数据看图表长什么样。', demoActions)
+  } else if (!series.some((s) => (s.points ?? []).length)) {
+    const names = series.map((s) => s.name).join('、')
+    chartBody = empty('所选指标还没有任何一次记录', `「${names.slice(0, 40)}${names.length > 40 ? '…' : ''}」在这个工作区里还没有记录，所以画不出曲线——这是没有数据，不是界面故障。导入检验单、手工补录，或先看模拟数据的效果。`, demoActions)
+  } else {
+    chartBody = timelineChart({ series, treatments, range: S.range, zoom: S.zoom, toggles: S.toggles, pin: S.pin, fallbackEnd: fallback })
+  }
   return `<section class="chart-panel" id="chart-panel">
     <div class="chart-top"><div><h2>病程时间轴</h2>
       <p class="small-note" style="margin-top:2px">只呈现已记录的值 · 不同指标各自缩放，不能横向比大小</p></div>
       <div class="actions">${pill(`${S.sel.length} 个指标`, 'pink')}${pill('按方法断线', 'green')}</div></div>
     ${legendHTML(series)}
-    ${timelineChart({ series, treatments, range: S.range, zoom: S.zoom, toggles: S.toggles, pin: S.pin, fallbackEnd: fallback })}
+    ${chartBody}
     <div id="pin-slot">${pinHTML()}</div>
   </section>`
 }

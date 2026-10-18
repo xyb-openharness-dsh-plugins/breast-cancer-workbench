@@ -18,6 +18,7 @@
  *    前端因此不用知道自己是跑在独立服务里还是宿主面板里。
  */
 import { createServer } from 'node:http'
+import { execFile } from 'node:child_process'
 import { readFile, readdir, stat } from 'node:fs/promises'
 import { realpathSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
@@ -125,6 +126,7 @@ const API_KNOWN = {
     /^\/api\/documents\/[^/]+\/text$/,
   ],
   POST: [
+    /^\/api\/fs\/pick$/,
     /^\/api\/(subject|active-subject|stage|settings|observations|treatments|arm|symptoms|tasks|questions|viewpoints|care|drains|nutrition|mind|export|documents)$/,
     /^\/api\/documents\/[^/]+\/(parse|accept-all)$/,
     /^\/api\/candidates\/[^/]+\/decide$/,
@@ -272,7 +274,7 @@ export class WorkbenchServer {
     }
 
     if (method === 'GET' && path === '/api/fs/dirs') {
-      // 目录浏览点选：只列子目录、不读文件内容、不写任何东西。
+      // 目录浏览点选（网页回退）：只列子目录、不读文件内容、不写任何东西。
       // 不要求已选资料目录（首次进入页就要用）。本机同源 + 宿主授权闸之内。
       const asked = url.searchParams.get('path')?.trim() || homedir()
       let current
@@ -281,24 +283,39 @@ export class WorkbenchServer {
       } catch {
         throw new AppError('DIR_NOT_FOUND', `这个目录不存在或打不开：${asked}`, 404)
       }
-      let stats
-      try { stats = statSync(current) } catch { throw new AppError('DIR_NOT_FOUND', `这个目录不存在或打不开：${current}`, 404) }
-      if (!stats.isDirectory()) throw new AppError('NOT_A_DIR', `这不是一个目录：${current}`, 400)
+      if (!statSync(current).isDirectory()) throw new AppError('NOT_A_DIR', `这不是一个目录：${current}`, 400)
       const dirents = await readdir(current, { withFileTypes: true })
-      const entries = dirents
-        .filter((d) => d.isDirectory() && !d.name.startsWith('.'))
-        .slice(0, 500)
+      const dirs = dirents.filter((d) => d.isDirectory() && !d.name.startsWith('.') && d.name.trim())
+      const entries = dirs.slice(0, 500)
         .map((d) => ({ name: d.name, path: join(current, d.name) }))
         .sort((a, b) => a.name.localeCompare(b.name, 'zh-Hans-CN'))
       const parent = dirname(current)
-      const hasParent = parent !== current
       sendJson(res, 200, {
         current,
-        parent: hasParent ? parent : null,
+        parent: parent !== current ? parent : null,
         entries,
-        truncated: dirents.filter((d) => d.isDirectory() && !d.name.startsWith('.')).length > entries.length,
+        truncated: dirs.length > entries.length,
         shortcuts: { home: homedir() },
       })
+      return
+    }
+
+    if (method === 'POST' && path === '/api/fs/pick') {
+      // 原生目录选择器：macOS 的 choose folder 对话框，由本机 osascript 弹出。
+      // 用户取消（-128）不是错误，返回 canceled 让界面安静收场。
+      if (process.platform !== 'darwin') {
+        throw new AppError('NOT_SUPPORTED', '本机系统不支持原生目录选择器，请用「网页浏览」或手输路径', 501)
+      }
+      const picked = await new Promise((resolvePromise) => {
+        execFile('osascript', ['-e', 'POSIX path of (choose folder with prompt "选择资料目录")'], (error, stdout) => {
+          if (error) {
+            if (error.code === -128 || /User canceled|用户已取消/i.test(`${error.message}`)) resolvePromise(null)
+            else resolvePromise({ error: error.message })
+          } else resolvePromise(String(stdout).trim().replace(/\/$/, '') || null)
+        })
+      })
+      if (picked && picked.error) throw new AppError('PICK_FAILED', `原生选择器没能打开：${picked.error}`, 500)
+      sendJson(res, 200, { picked, canceled: picked === null })
       return
     }
 
