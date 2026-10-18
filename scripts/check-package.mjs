@@ -101,6 +101,9 @@ if (has('lib/client.js')) {
     ['注销交给 ctx.effect', /ctx\.effect\(\(\) =>/.test(client)],
     ['单文件：没有 import / 本地 require', !/^\s*import\s/m.test(client) && !/require\(['"]\.\.?\//.test(client)],
     ['面板参数与 lib/layout.js 同值', client.includes(`businessSide: '${PANEL.businessSide}'`) && client.includes(`businessWidth: ${PANEL.businessWidth}`)],
+    ['customFrame 与 lib/layout.js 同值（面板可拖可收依赖它）', client.includes(`customFrame: ${PANEL.customFrame === true}`)],
+    ['customFrame 下自带 AI 对话入口（不依赖宿主关闭接口）', /'打开 AI 对话'/.test(client) && /'收起 AI 对话'/.test(client)],
+    ['splitter 语义与键盘可达（role=separator + tabIndex）', /role: 'separator'/.test(client) && /tabIndex: 0/.test(client)],
     ['接口前缀与 lib/identity.js 同值', client.includes(UI_ENTRY)],
   ]
   for (const [label, pass] of checks) {

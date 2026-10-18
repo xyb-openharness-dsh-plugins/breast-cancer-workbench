@@ -3,6 +3,21 @@
 规则：涨版本先改 `VERSION`，再在本文顶部加一条（日期 + 版本 + 一句话 + 影响面）。
 `npm run check` 会拦住"改了版本没记录"和"记录了没改版本"两种漏（见 [VERSIONING](docs/VERSIONING.md)）。
 
+## 0.6.0 — 2026-10-19（AI 对话面板可打开、可拖宽、可收起：改用 customFrame）
+
+**一句话**：AI 对话面板不再依赖宿主分栏——改用 `customFrame`，由工作台自己排版原生会话，于是顶栏有了明确入口、中间分隔边可鼠标拖/键盘调、收起后能原样重开。
+
+**为什么改（源码级证据，不是猜测）**：标准分栏（`customFrame=false`）下，宿主 `packages/dsh-desktop-workbenches/client.js` 把业务宽度写成注册时的静态值 `--workbench-business-width`，而服务只暴露 `register/isActive/ownsSession/add/open/home/ensureSession/currentSession/subscribe`——**没有** `setBusinessWidth`、`togglePane`，DOM 里也没有 splitter 节点。也就是说"关闭与拖宽用宿主原生面板自带能力"这条前提不成立：那条路上根本没有这个能力。customFrame 下宿主把原生会话节点作为 `conversation` prop 交给插件排版（同文件第 2000 行），拖宽、收起/重开、宽度记忆才可能实现。证据与逐条落地见 `docs/AGENT-PANE-DESIGN.md` §0。
+
+- **入口五态**：顶栏按钮 `AI 对话 / 正在连接… / 收起 AI 对话 / 打开 AI 对话 / AI 对话暂不可用`，带 `aria-label`；已绑定会话时另有独立「×」收起控件——不把关闭藏在面板内部。
+- **可拖宽**：中间 splitter，鼠标/触控拖动；键盘 `←/→` 步进 2%、`Home/End` 到边界；`role="separator"` + `aria-valuemin/max/now`；区间 **25%–45%**（默认 35%，业务区 65%），与 starter `20-AGENT-PANE-DESIGN` 基线一致。宽度存 localStorage，重开恢复。
+- **收起不结束会话**：只切 `paneOpen` 与 `display`，不调用任何关闭/删除接口；再点「打开 AI 对话」回到同一会话。原生会话**恒定挂载**（宿主明确要求不重挂输入树），卸载会丢输入框与草稿。
+- **窄屏**：容器（不是窗口）宽度 < 760px 时改为覆盖式抽屉（≤420px），业务区不让位；splitter 在该形态下不出现。
+- **官方约束逐条落地**：根节点首个子元素为语义 `<header>` 并避让 `--dsh-frame-leading-clearance`；无会话时右侧给引导、业务区照常可用（§6），不依赖会话初始化。
+- **唯一来源**：`PANEL`（`customFrame=true`、`businessWidth=0.65`）与 `AGENT_PANE`（0.35 / 0.25–0.45 / step 0.02 / 760 / 420）都在 `lib/layout.js`，由 `scripts/build-client.mjs` 注入客户端；`assertPanelConfig()` 钉住"业务宽度与会话默认宽度互补"，改一个必须改另一个。包级检查新增 3 项（customFrame 同值、入口文案、splitter 语义）。
+- **文档同步**：`UI-DESIGN` §5.6、`RELEASE` §2.3 与 §3、`SPEC` A33/§8、`DEV-PLAN` 的"非 customFrame"表述全部改为新形态；`AGENT-PANE-DESIGN` 重写（§0 决策证据 + 现状 + 未验证项）。官方 §8「customFrame 内不越界」随之从**不适用**变回**适用**。
+- **未验证**：拖动/收起/抽屉在真实 Desktop 容器里的观感与边界，需重启 Desktop 人工确认（静态断言与开发自测不算验收）；窄屏 760px 断点是否合适也要实机后再定。
+
 ## 0.5.3 — 2026-10-18（窄空间顶部双层导航 + 模拟数据快捷预览）
 
 **一句话**：窄空间不再把一级、二级导航挤在侧栏里；改为顶部两行导航，并在空看板提供一键加载完整模拟数据后直达「病情一图秀」。

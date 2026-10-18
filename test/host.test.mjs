@@ -331,6 +331,37 @@ test('面板参数来自 lib/layout.js：客户端里不得出现第二份写死
   const client = await readFile(new URL('../lib/client.js', import.meta.url), 'utf8')
   assert.match(client, new RegExp(`businessSide: '${PANEL.businessSide}'`))
   assert.match(client, new RegExp(`businessWidth: ${PANEL.businessWidth}\\b`))
+  assert.match(client, new RegExp(`customFrame: ${PANEL.customFrame === true}`))
   assert.match(client, /window\.__ModuleLoader__\.load\(/)
   assert.match(client, /desktopWorkbenches\.register\(/)
+})
+
+/* ---------------- customFrame 下的面板能力（2026-10-19） ---------------- */
+
+test('客户端自带 AI 对话入口与可拖动 splitter：不依赖宿主给关闭/调宽接口', async () => {
+  const client = await readFile(new URL('../lib/client.js', import.meta.url), 'utf8')
+  // 入口：四种状态文案齐全，未打开时叫「AI 对话」，已打开时可收起、收起后可重开
+  assert.match(client, /'AI 对话'/)
+  assert.match(client, /'打开 AI 对话'/)
+  assert.match(client, /'收起 AI 对话'/)
+  assert.match(client, /'正在连接…'/)
+  // splitter：语义与键盘可达
+  assert.match(client, /role: 'separator'/)
+  assert.match(client, /aria-valuenow/)
+  assert.match(client, /tabIndex: 0/)
+  // 步进与边界来自注入常量，客户端里不写第二份
+  assert.doesNotMatch(client, /AGENT_MIN = 0\.(?!25)/)
+  // 宽度区间常量由构建注入
+  assert.match(client, /AGENT_MIN = 0\.25/)
+  assert.match(client, /AGENT_MAX = 0\.45/)
+})
+
+test('原生会话始终挂载：隐藏走 display，不卸载（否则输入框与草稿会丢）', async () => {
+  const client = await readFile(new URL('../lib/client.js', import.meta.url), 'utf8')
+  // aside 恒定渲染，conversation 为 null 时给引导文案；显隐只由 display 决定
+  assert.match(client, /conversation \?\? h\('div'/)
+  assert.match(client, /display: paneVisible \? 'flex' : 'none'/)
+  // 收起只切换 paneOpen，不调用任何关闭/删除会话的接口
+  assert.match(client, /收起只是隐藏，不是关闭\/删除会话/)
+  assert.doesNotMatch(client, /removeSession|closeSession|endSession/)
 })

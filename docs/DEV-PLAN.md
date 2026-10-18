@@ -68,7 +68,7 @@ npm run pack:check → 8 files, 264.3 kB, shasum 40374a49…
 | 包名 scope | `@pinkypal-dsh/breast-cancer-workbench` | 纯占位，未发布；改名只影响 `package.json` 与 pack 产物名 |
 | 许可证 | **`MIT`（已定，D30）** | 根 `LICENSE` 与 `package.json` 的 `license` 一致；`private: true` 仍保留，走 npm 来源前要摘掉 |
 | 首发版本 | `0.3.0`（沿用 `VERSION`） | M2 出现用户可见功能时会按 VERSIONING 升 MINOR |
-| 布局 | **`0.65` / right / 非 customFrame（已定，D34）** | 参数唯一来源 `lib/layout.js`；M5 写进 `cordis.patch.yml` |
+| 布局 | **`customFrame=true` + 业务区默认 `0.65`（2026-10-19 修订）** | 参数唯一来源 `lib/layout.js`（`PANEL` 与 `AGENT_PANE`）；M5 写进 `cordis.patch.yml`。标准分栏下宿主没有拖宽/关闭接口，AI 面板不可调，故改 customFrame |
 
 ## 3.5 M1 已完成 + M2 第一段已落地（2026-10-17）
 

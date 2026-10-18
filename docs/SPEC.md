@@ -238,7 +238,7 @@ A23 只覆盖 P1/P3/P4 的 HTML 侧；**P2 与 P5 在接入 DSH 后补验**，�
 | A30 | 术式与身体形象 | 术式含重建方式为独立字段，不写入治疗事件；身体形象话题需用户主动打开，默认不进摘要与导出 |
 | A31 | 术后引流量 | 同日多次不合并、量缺失显示未记录；拔管后归档仍可回看；不判断感染、不给换药步骤 |
 | A32 | 发布可见性（装机侧） | 装进 DSH 后首屏可见 `vX.Y.Z`，与 `VERSION`、`package.json`、git tag、市场条目一致；未发布时"关于"与 README 都明写未发布 |
-| A33 | 面板布局（A 0.65） | 面板参数为 `businessSide=right`、`businessWidth=0.65`、`customFrame=false`；业务区等效宽度 936px 下 34 个视图无页面级横向溢出，「测量记录」六列表整行且 `scrollWidth===clientWidth`；宽度实测不能替代 M5 装机后的界面边界签认 |
+| A33 | 面板布局（业务区默认 0.65） | 面板参数：`customFrame=true`（2026-10-19 起，标准分栏下 AI 面板不可拖不可收，见 [AGENT-PANE-DESIGN §0](AGENT-PANE-DESIGN.md)）、`businessSide=left`、`businessWidth=0.65`，并与 `AGENT_PANE.default=0.35` 互补；会话面板可拖 25%–45%、键盘←/→步进 2%、可收起且**不结束会话**。业务区等效宽度 936px 下 34 个视图无页面级横向溢出，「测量记录」六列表整行且 `scrollWidth===clientWidth`；宽度实测不能替代 M5 装机后的界面边界签认 |
 | A34 | 私密默认关闭（v0.4.0） | 任何读模型与导出**默认**不含 `is_private=1`（`viewpointList` / `careList` 的 `includePrivate` 默认 `false`）；本人页面与营养/心理页显式传 `true`；导出要逐次勾选 `includePrivateViewpoints`。单测：私密看法在默认导出里查不到 |
 | A35 | 接口错误可读（v0.4.0） | 未选目录时业务接口 409 `NO_WORKSPACE`；未知接口 404 `NOT_FOUND`（不被 409 顶掉）；坏 JSON 400 `BAD_JSON`；错误体统一 `{ error: { code, message } }`，不回堆栈；未选目录时不会偷偷创建目录 |
 | A36 | 计划日期与已发生日期分开 | 待办 `dueOn` 与 `status='planned'` 的治疗允许未来日期；已发生的观测/症状/测量/治疗不许晚于今天（`FUTURE_DATE`）；不存在的日期（2 月 30 日）报 `BAD_DATE`，不静默挪日 |
@@ -272,7 +272,7 @@ A23 只覆盖 P1/P3/P4 的 HTML 侧；**P2 与 P5 在接入 DSH 后补验**，�
 
 API-first：领域/数据合同 → 业务服务与 API → UI 与编排 → 原生会话适配。包结构沿用 `package.json`、`cordis.patch.yml`、`dsh/index.js`、`lib/client.js`。存储实现等 G3 通过后按 [SCHEMA-SPEC §9](SCHEMA-SPEC.md) 的迁移计划落地。
 
-布局：**A 标准分栏**（D21 → D34，2026-10-17 定）——`businessSide: 'right'`、`businessWidth: 0.65`、`customFrame: false`。业务区在左、右侧宿主原生会话；936px 等效宽度下 34 个视图无页面级横向溢出，「测量记录」六列表改为整行跨列，不再靠横向滚动藏列。实测与规则见 [UI-DESIGN §5.6](UI-DESIGN.md)，参数唯一来源为 `lib/layout.js`。原型为独立页面，不模拟宿主聊天。
+布局：**customFrame**（D21 → D34 定业务区 0.65；2026-10-19 把 `customFrame` 改为 `true`）——`customFrame: true`、`businessSide: 'left'`、`businessWidth: 0.65`，与 `AGENT_PANE`（默认 0.35、可拖 0.25–0.45）互补。业务区在左、右侧是宿主原生会话（由宿主以 `conversation` prop 交给我们排版，因此可拖宽、可收起）。936px 等效宽度下 34 个视图无页面级横向溢出，「测量记录」六列表改为整行跨列，不再靠横向滚动藏列。实测与规则见 [UI-DESIGN §5.6](UI-DESIGN.md)，参数唯一来源为 `lib/layout.js`；面板交互合同与未验证项见 [AGENT-PANE-DESIGN](AGENT-PANE-DESIGN.md)。原型为独立页面，不模拟宿主聊天。
 
 版本号：单一来源为仓库根目录 `VERSION`，页面三处（顶栏 / 页脚 / 关于）由同一常量渲染，构建时注入、不手写第二份；规则见 [VERSIONING](VERSIONING.md)，校验 `node scripts/check-version.mjs`。
 

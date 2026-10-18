@@ -24,7 +24,7 @@ const target = join(root, 'lib', 'client.js')
 const checkOnly = process.argv.includes('--check')
 
 const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
-const { PANEL } = await import('../lib/layout.js')
+const { PANEL, AGENT_PANE, assertPanelConfig } = await import('../lib/layout.js')
 const { API_PREFIX, UI_ENTRY } = await import('../lib/identity.js')
 const { version } = await import('../lib/version.js')
 
@@ -47,8 +47,8 @@ if (!/^https:\/\/github\.com\/[^/]+\/[^/]+$/.test(repository)) {
 
 const problems = []
 if (!pkg.name) problems.push('package.json 缺少 name')
-if (PANEL.businessSide !== 'left' && PANEL.businessSide !== 'right') problems.push(`businessSide 非法：${PANEL.businessSide}`)
-if (!(PANEL.businessWidth >= 0.25 && PANEL.businessWidth <= 0.7)) problems.push(`businessWidth 越界：${PANEL.businessWidth}`)
+// 布局参数交给 lib/layout.js 自检（含 customFrame 与会话宽度区间），这里不再抄第二份判据
+for (const problem of assertPanelConfig(PANEL, AGENT_PANE)) problems.push(problem)
 if (problems.length) {
   for (const p of problems) console.error(`✗ ${p}`)
   process.exit(1)
@@ -63,11 +63,20 @@ const replacements = {
   __BUSINESS_SIDE__: PANEL.businessSide,
   __BUSINESS_WIDTH__: String(PANEL.businessWidth),
   __CUSTOM_FRAME__: String(PANEL.customFrame === true),
+  // customFrame 下会话面板宽度由我们自己排版，下面五个值都来自 lib/layout.js
+  __AGENT_DEFAULT__: String(AGENT_PANE.default),
+  __AGENT_MIN__: String(AGENT_PANE.min),
+  __AGENT_MAX__: String(AGENT_PANE.max),
+  __AGENT_STEP__: String(AGENT_PANE.step),
+  __NARROW_BELOW__: String(AGENT_PANE.narrowBelowPx),
+  __DRAWER_MAX__: String(AGENT_PANE.drawerMaxPx),
 }
 
 const header = `/* 本文件由 scripts/build-client.mjs 从 src/client.js 生成，请勿手改。\n`
   + ` * 改客户端源码请改 src/client.js 后运行 npm run build:client。\n`
-  + ` * 包名 ${pkg.name} · 仓库 ${repository} · 面板 ${PANEL.businessSide} ${PANEL.businessWidth}\n`
+  + ` * 包名 ${pkg.name} · 仓库 ${repository}\n`
+  + ` * 面板 customFrame=${PANEL.customFrame === true} · 业务 ${PANEL.businessSide} ${PANEL.businessWidth}\n`
+  + ` * AI 会话可拖宽度 ${AGENT_PANE.min}–${AGENT_PANE.max}（默认 ${AGENT_PANE.default}）\n`
   + ` */\n`
 
 let generated = header + readFileSync(source, 'utf8')
@@ -92,7 +101,7 @@ if (checkOnly) {
     console.error('✗ lib/client.js 与来源不同步，请运行 npm run build:client')
     process.exit(1)
   }
-  console.log(`✓ lib/client.js 与来源同步（${pkg.name} · ${repository} · ${PANEL.businessSide} ${PANEL.businessWidth}）`)
+  console.log(`✓ lib/client.js 与来源同步（${pkg.name} · ${repository} · customFrame=${PANEL.customFrame === true} · 会话 ${AGENT_PANE.min}–${AGENT_PANE.max}）`)
   process.exit(0)
 }
 
@@ -102,4 +111,4 @@ if (existsSync(target) && readFileSync(target, 'utf8') === generated) {
 }
 
 writeFileSync(target, generated)
-console.log(`✓ 已生成 lib/client.js（v${version} · ${pkg.name} · ${PANEL.businessSide} ${PANEL.businessWidth}）`)
+console.log(`✓ 已生成 lib/client.js（v${version} · ${pkg.name} · customFrame=${PANEL.customFrame === true} · 会话 ${AGENT_PANE.min}–${AGENT_PANE.max}）`)

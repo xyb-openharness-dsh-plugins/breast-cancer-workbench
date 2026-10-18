@@ -186,17 +186,20 @@ v0.3 按 D15/D16 修订：话题与指标显示名改为「术后上肢」；就
 - 加载失败时隐藏图片、用 `.no-mark::before` 显示「粉」字圆标，不留破图；不允许用 emoji 代替 logo。
 - 同一标识在侧栏与「关于」弹窗必须同源；需要完整竖版时用 `logo-full`，不得拉伸方图。
 
-### 5.6 面板布局：A 标准分栏 0.65（D21 → D34 已定）
+### 5.6 面板布局：customFrame + 业务区默认 0.65（D21 → D34 → 2026-10-19 修订）
 
-宿主面板参数写死在这三行，M5 的 `cordis.patch.yml` 与 M2 的界面判定都从这里取，**不在别处再写一份**（代码侧 `/lib/layout.js` 与 `test/layout.test.mjs` 同值）：
+宿主面板参数写死在这几行，M5 的 `cordis.patch.yml`、构建注入与界面判定都从这里取，**不在别处再写一份**（代码侧 `lib/layout.js` 与 `test/layout.test.mjs` 同值）：
 
 | 参数 | 值 | 说明 |
 | --- | --- | --- |
-| `businessSide` | `right` | 业务在左、原生会话在右，与 SPEC §8 一致 |
-| `businessWidth` | `0.65` | 宿主允许 0.25–0.7；不取下限（报表挤不下）、不取上限（官方明确反对把报表塞进分栏） |
-| `customFrame` | `false` | 不用业务整页。选 A 的理由见下 |
+| `customFrame` | `true` | **2026-10-19 从 `false` 改过来**：标准分栏下面板不能拖宽、不能收起（宿主服务没有这类接口，见下），而用户要求 AI 对话框可调 |
+| `businessSide` | `left` | 业务在左、原生会话在右，与 SPEC §8 一致 |
+| `businessWidth` | `0.65` | 宿主注册时仍校验 0.25–0.7；customFrame 下它记的是**默认业务区宽度**，与 `AGENT_PANE.default = 0.35` 互补 |
+| `AGENT_PANE` | 默认 0.35，可拖 0.25–0.45，步进 0.02 | 由我们实现的拖动/键盘调整区间，取 starter `20-AGENT-PANE-DESIGN` 基线 |
 
-**为什么不选 B（`customFrame`）**：B 要自己实现首次进入与"无会话"态，还要避让窗口按钮；而 65% 分栏实测只余一处拥挤，用一条跨列规则就能解决——不值得为它换整页框架，也不值得多一套空态要维护。
+**为什么改（源码级理由，证据见 `docs/AGENT-PANE-DESIGN.md` §0）**：标准分栏时宿主把 `--workbench-business-width` 写成注册时的静态值，服务只暴露 `register/isActive/ownsSession/add/open/home/ensureSession/currentSession` 等，**没有** `setBusinessWidth` / `togglePane`，DOM 里也不存在 splitter 节点——"关闭与拖宽用宿主原生面板自带能力"这条前提不成立。customFrame 下宿主把原生会话节点作为 `conversation` prop 交给我们排版，拖宽、收起/重开、宽度记忆才可能实现。代价是无会话态要自己引导（§6），且根节点首个子元素必须是 `<header>` 并用 `--dsh-frame-leading-clearance` 避让窗口按钮——都已在 `src/client.js` 里处理。
+
+业务区默认仍是 **65%**，所以下面的 34 视图实测结论继续有效。
 
 **实测（2026-10-17，chrome-headless-shell 131，macOS）**：
 
@@ -219,7 +222,7 @@ v0.3 按 D15/D16 修订：话题与指标显示名改为「术后上肢」；就
 
 **遗留（M2 补，不算已通过）**：≤900 时 `.pick`（16 项指标）折叠成 31px 摘要，只有"最多 4 个 · 已选 3"一行，没有展开指示；选中项变化时也不回显是哪几个。M2 要给摘要加展开箭头与已选指标名。
 
-**对 V3 判定的影响**：选 A 后，官方 §8 的「`customFrame` 内不越界」一项**不适用**（写理由，不空着）；「面板不遮挡侧栏/市场入口」仍需 M5 装机实机验，本节的宽度实测不能替代它。
+**对 V3 判定的影响**：改用 customFrame 后，官方 §8 的「`customFrame` 内不越界」**从"不适用"变回适用**——拖动、抽屉、弹层都必须在宿主主内容区内，且原生 `conversation` 节点可用。这一项只能装机实机验，本节的宽度实测不能替代它；「面板不遮挡侧栏/市场入口、键盘可达」同理。
 
 ## 6. 无障碍与响应式
 
