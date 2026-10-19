@@ -1,7 +1,7 @@
 # Agent 对话面板集成设计（小粉宝乳腺癌工作台）
 
 日期：2026-10-18 立项，2026-10-19 重大修订（改用 customFrame）。
-合同来源：starter `prompts/DSH-AGENT-PANE-INTEGRATION.md`（比卵巢癌版多两节：CustomFrame 宽度基线与「AI-IDE 配套设计交付」）；卵巢癌工作台 `docs/AGENT-PANE-DESIGN.md` 是同族判定，可对照。
+合同来源：starter `prompts/DSH-AGENT-PANE-INTEGRATION.md`（比卵巢癌版多两节：CustomFrame 宽度基线与「AI-IDE 配套设计交付」）；顶栏结构与视觉见 [prompts/DSH-WORKBENCH-TOP-BAR.md](../prompts/DSH-WORKBENCH-TOP-BAR.md)（v0.6.1 定稿的三段式，2026-10-19 沉淀进 starter）；卵巢癌工作台 `docs/AGENT-PANE-DESIGN.md` 是同族判定，可对照。
 本页是该合同在本项目的落地判定与未验证项清单。
 
 ## 0. 2026-10-19 修订：改用 customFrame（决策与证据）
