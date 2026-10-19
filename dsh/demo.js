@@ -186,6 +186,12 @@ function buildDemo1(store, { workspaceId, rnd }) {
   store.addSymptom({ subjectId: subject.id, code: 'arm_heaviness', level: 2, occurredOn: '2026-10-14', bodySide: 'left', note: '下午和晚上更明显（模拟）' })
   store.addSymptom({ subjectId: subject.id, code: 'ai_joint', level: 2, occurredOn: '2026-10-14', note: '晨起手指僵硬约 20 分钟（模拟）' })
   store.addSymptom({ subjectId: subject.id, code: 'fatigue', level: 1, occurredOn: '2026-09-20', note: '模拟' })
+  // 骨髓抑制的两个面（2026-10-20 定则）：表达上「头晕 + 疲乏」，指标上「中性粒细胞低」。
+  // 序列是伪随机的，末点落在哪一级不保证；这里显式补最近一次血常规与一条头晕感受，
+  // 让 CTCAE 对照徽章和看板提醒在演示数据里**稳定可见**——数值仍是构造值，不是真实病历。
+  store.addSymptom({ subjectId: subject.id, code: 'dizziness', level: 2, occurredOn: '2026-10-16', note: '起身时明显（模拟）' })
+  store.addObservation({ subjectId: subject.id, metricCode: 'anc', observedOn: '2026-10-16', value: 0.8, unit: '10⁹/L' })
+  store.addObservation({ subjectId: subject.id, metricCode: 'wbc', observedOn: '2026-10-16', value: 2.6, unit: '10⁹/L' })
 
   // 一份已核对完的血常规：两条候选都已接受，草稿里不留待办
   const importer = new ImportService(store)

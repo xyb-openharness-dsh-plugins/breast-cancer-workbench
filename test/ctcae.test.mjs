@@ -12,6 +12,7 @@ import { readFileSync, existsSync } from 'node:fs'
 import {
   CTCAE_META, CTCAE_GRADE_LABELS, ctcaeGrade, ctcaeCoveredCodes, ctcaeInfo,
 } from '../dsh/ctcae.js'
+import { marrowSuppression } from '../dsh/readmodels.js'
 
 test('元信息：版本 5.0、发布日期与本地 PDF 位置', () => {
   assert.equal(CTCAE_META.version, '5.0')
@@ -107,4 +108,78 @@ test('读模型透传：metricCards 的 ctcae 字段只出现在有定义且有�
 test('分级标签齐备', () => {
   assert.deepEqual(Object.keys(CTCAE_GRADE_LABELS).sort(), ['1', '2', '3', '4'])
   assert.equal(ctcaeInfo().version, CTCAE_META.version)
+})
+
+/* ---------------- 骨髓抑制：表达面 + 指标面 ---------------- */
+
+async function withStore(fn) {
+  const { Workbench } = await import('../dsh/workbench.js')
+  const { mkdtemp, rm } = await import('node:fs/promises')
+  const { join } = await import('node:path')
+  const { homedir } = await import('node:os')
+  const root = await mkdtemp(join(homedir(), '.xyb-marrow-'))
+  try {
+    const { workbench } = await Workbench.openWorkspace({ dir: join(root, '资料'), create: true, subjectName: '测试' })
+    const out = fn(workbench, workbench.requireSubject())
+    workbench.store.close()
+    return out
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+}
+
+test('骨髓抑制：只有感受、没有指标时不成提醒（不拿感受去猜指标）', async () => {
+  const r = await withStore((wb, id) => {
+    wb.store.addSymptom({ subjectId: id, code: 'dizziness', level: 2, occurredOn: '2026-10-16' })
+    return marrowSuppression(wb.store, id)
+  })
+  assert.equal(r.symptoms.length, 1)
+  assert.equal(r.labs.length, 0)
+  assert.equal(r.paired, false)
+  assert.equal(r.labsOnly, false)
+  assert.equal(r.highestGrade, null)
+})
+
+test('骨髓抑制：只有指标有级、没记相关感受时是 labsOnly，不弹看板提醒', async () => {
+  const r = await withStore((wb, id) => {
+    wb.store.addObservation({ subjectId: id, metricCode: 'anc', observedOn: '2026-10-16', value: 0.8 })
+    wb.store.addSymptom({ subjectId: id, code: 'arm_heaviness', level: 2, occurredOn: '2026-10-16' })
+    return marrowSuppression(wb.store, id)
+  })
+  assert.equal(r.paired, false)
+  assert.equal(r.labsOnly, true, '上肢沉重不属于骨髓抑制的表达面，不该算进来')
+  assert.equal(r.labs[0].grade, 3)
+})
+
+test('骨髓抑制：感受与指标都记录了才 paired；感受按码去重，指标按级降序', async () => {
+  const r = await withStore((wb, id) => {
+    wb.store.addSymptom({ subjectId: id, code: 'dizziness', level: 2, occurredOn: '2026-10-16' })
+    wb.store.addSymptom({ subjectId: id, code: 'dizziness', level: 1, occurredOn: '2026-10-10' })
+    wb.store.addSymptom({ subjectId: id, code: 'fatigue', level: 2, occurredOn: '2026-10-15' })
+    wb.store.addObservation({ subjectId: id, metricCode: 'anc', observedOn: '2026-10-16', value: 0.8 })
+    wb.store.addObservation({ subjectId: id, metricCode: 'wbc', observedOn: '2026-10-16', value: 2.6 })
+    wb.store.addObservation({ subjectId: id, metricCode: 'plt', observedOn: '2026-10-16', value: 190 })
+    return marrowSuppression(wb.store, id)
+  })
+  assert.equal(r.paired, true)
+  assert.equal(r.labsOnly, false)
+  assert.deepEqual(r.symptoms.map((s) => s.code).sort(), ['dizziness', 'fatigue'], '同一码只留最近一条')
+  assert.equal(r.symptoms.find((s) => s.code === 'dizziness').level, 2, '取最近一条（10-16）')
+  assert.deepEqual(r.labs.map((l) => l.code), ['anc', 'wbc'], '190 的血小板在正常区间，不进列表')
+  assert.equal(r.highestGrade, 3)
+  assert.equal(r.labs[0].term, '中性粒细胞减少')
+  assert.equal(r.ctcae.version, '5.0')
+  assert.match(r.note, /不推断因果/)
+  assert.match(r.disclaimer, /不是诊断/)
+})
+
+test('看板 overview 透传 marrow 字段', async () => {
+  const r = await withStore((wb, id) => {
+    wb.store.addSymptom({ subjectId: id, code: 'fatigue', level: 1, occurredOn: '2026-10-15' })
+    wb.store.addObservation({ subjectId: id, metricCode: 'hgb', observedOn: '2026-10-15', value: 92 })
+    return wb.overview()
+  })
+  assert.equal(r.marrow.paired, true)
+  assert.equal(r.marrow.labs[0].code, 'hgb')
+  assert.equal(r.marrow.labs[0].grade, 2)
 })

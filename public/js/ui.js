@@ -261,9 +261,29 @@ export function sparkline(points, color, dec, { width = 220, height = 62 } = {})
 
 /* ---------------- 指标卡（原地翻转） ---------------- */
 
-export function metricCard(card, flipped) {
+/**
+ * CTCAE 分级徽章（只在有级时出现）。
+ * 文案固定为"对照 … 级"，不写"偏高 / 异常 / 需要处理"——分级是把值放进国际标准的
+ * 客观区间，是**对照**不是诊断。`ctcaeVersion` 由读模型元信息透传，前端不硬编码版本。
+ */
+export function gradeBadge(grade, ctcaeVersion = '', extraClass = '') {
+  if (!grade) return ''
+  const v = ctcaeVersion ? `v${esc(ctcaeVersion)} · ` : ''
+  return `<span class="grade-chip${grade >= 3 ? ' high' : ''}${extraClass ? ` ${extraClass}` : ''}">对照 CTCAE ${v}${grade} 级</span>`
+}
+
+/** 分级区间与免责一行（卡片背面 / 列表里用）。 */
+export function gradeLine(ctcae, ctcaeVersion = '') {
+  if (!ctcae?.grade) return ''
+  const v = ctcaeVersion ? `v${esc(ctcaeVersion)}` : 'CTCAE'
+  return `<span class="grade-line">${esc(v)} ${ctcae.grade} 级${ctcae.band ? ` · ${esc(ctcae.band)}` : ''}${ctcae.approx ? ' · 按通用下限近似' : ''} · 对照不是诊断</span>`
+}
+
+export function metricCard(card, flipped, ctcaeVersion = '') {
   const color = card.color
   const latest = card.latest
+  const badge = card.ctcae?.grade ? gradeBadge(card.ctcae.grade, ctcaeVersion) : ''
+  const backGrade = card.ctcae?.grade ? gradeLine(card.ctcae, ctcaeVersion) : ''
   if (!latest) {
     return `<button class="mcard" data-action="flip" data-code="${card.code}" aria-pressed="false" aria-label="${esc(card.name)}，还没有记录">
       <span class="mcard-inner">
@@ -286,19 +306,22 @@ export function metricCard(card, flipped) {
        <span class="name">${esc(card.name)} · 最近 ${recent.length} 次</span>
        ${sparkline(recent, color, card.dec)}
        <span class="spark-labels"><span>${longDate(recent[0].date)}</span><span>${longDate(recent.at(-1).date)}</span></span>
+       ${backGrade}
        ${card.breakCount ? `<span class="small-note" style="margin-top:2px">有 ${card.breakCount} 处方法变更，线在那里断开</span>` : ''}
        <span class="foot">仅回顾已记录的值 · 点击返回</span>`
     : `<span class="cat"><i style="background:${color}"></i>${esc(card.categoryLabel)}</span>
        <span class="name">${esc(card.name)}</span>
        <span class="na">只有 1 次记录，暂不连线。<br>再记录一次后显示趋势。</span>
+       ${backGrade}
        <span class="foot">${longDate(latest.date)} · 点击返回</span>`
-  return `<button class="mcard" data-action="flip" data-code="${card.code}" aria-pressed="${flipped ? 'true' : 'false'}" aria-label="${esc(card.name)}，${fmtNum(latest.value, card.dec)} ${esc(unitText(card.unit))}，${longDate(latest.date)}；${flipped ? '点击返回摘要' : `点击翻转查看最近 ${recent.length} 次记录`}">
+  return `<button class="mcard" data-action="flip" data-code="${card.code}" aria-pressed="${flipped ? 'true' : 'false'}" aria-label="${esc(card.name)}，${fmtNum(latest.value, card.dec)} ${esc(unitText(card.unit))}，${longDate(latest.date)}${card.ctcae?.grade ? `，对照 CTCAE ${card.ctcae.grade} 级` : ''}；${flipped ? '点击返回摘要' : `点击翻转查看最近 ${recent.length} 次记录`}">
     <span class="mcard-inner">
       <span class="mface front" aria-hidden="true">
         <span class="cat"><i style="background:${color}"></i>${esc(card.categoryLabel)}</span>
         <span class="name">${esc(card.name)}</span>
         <span class="val">${fmtNum(latest.value, card.dec)}<small>${esc(unitText(card.unit))}</small></span>
         <span class="delta">${trend}</span>
+        ${badge ? `<span class="grade-slot" title="${esc(card.ctcae.band ?? '')}（${esc(card.ctcae.term ?? '')}）">${badge}</span>` : ''}
         <span class="rec">共 ${card.count} 次记录${card.count > 1 ? ' · 点击翻转看趋势' : ''}</span>
         <span class="meta"><span>${longDate(latest.date)} · ${esc(latest.source ?? '本人记录')}</span><span class="hint">翻转 ↗</span></span>
       </span>

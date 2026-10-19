@@ -532,3 +532,26 @@ dialog::backdrop{background:rgba(51,42,48,.35);backdrop-filter:blur(2px)}
 .dir-item:hover{background:#fdf0f4}
 .dir-item small{color:var(--muted);flex:0 0 auto}
 .dir-item span b{font-weight:400;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ---------------- CTCAE 分级对照（0.7.0） ---------------- */
+/* 徽章只写"对照 … 级"，不写"偏高 / 异常"：分级是把值放进国际标准的客观区间，不是判断。 */
+.grade-slot{display:block;margin-top:5px}
+.grade-chip{display:inline-block;font-size:9.5px;line-height:1.5;letter-spacing:.2px;font-weight:600;
+  padding:2px 7px;border-radius:999px;border:1px solid var(--line);background:#f7f4f5;color:#6b5a62;white-space:nowrap}
+.grade-chip.high{border-color:#f0dcb8;background:#fffaf0;color:#7d5a17}
+.grade-line{display:block;font-size:9.5px;line-height:1.55;color:#8b7a82;margin-top:4px}
+
+/* 化疗后常见反应 · 骨髓抑制：感受与指标两列并置，不写因果 */
+.alert-strip.marrow{align-items:flex-start}
+.marrow-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:8px 14px;margin-top:8px}
+.marrow-col{display:flex;flex-direction:column;gap:4px}
+.marrow-key{font-size:10px;letter-spacing:.5px;color:#a2949b}
+.marrow-item{display:flex;flex-direction:column;gap:1px;background:#fff;border:1px solid #f3e6cf;border-radius:9px;padding:6px 9px}
+.marrow-item b{font-size:12px;font-weight:600;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.marrow-item small{font-size:10px;color:#9b8a72}
+
+/* 指标分析页的 CTCAE 引用块 */
+.ctcae-ref{display:block}
+.ctcae-ref b{font-weight:600}
+.ctcae-ref-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px 16px;margin-top:8px}
+.ctcae-ref-cols p{margin-top:3px;font-size:11.5px;line-height:1.6}
