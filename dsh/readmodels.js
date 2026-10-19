@@ -7,7 +7,23 @@
  * 3. 可比性跟方法走：同一指标的记录若 `lab_method` 变化，序列在这里**断开**，不被拼成一条线（A10）。
  *
  * 这里不判断病情，也不给处置：标签只描述"这是什么"，不描述"这是好还是坏"。
+ *
+ * 2026-10-20 起唯一的"客观对照"：CTCAE v5.0 分级（用户定则）——它不是判断，是国际标准
+ * 的客观区间对照；实现与免责见 dsh/ctcae.js。
  */
+
+import { ctcaeGrade, ctcaeInfo } from './ctcae.js'
+
+/** 指标卡用的 CTCAE 对照；gradeCtcae 返回 null 表示该指标无定义，不透传字段。 */
+function gradeCtcae(code, value) {
+  const g = ctcaeGrade(code, value)
+  return g && g.grade ? { grade: g.grade, band: g.band, term: g.term, approx: g.approx, note: g.note } : null
+}
+
+/** CTCAE 元信息（版本/来源/免责），前端渲染来源与免责用。 */
+export function ctcaeMeta() {
+  return ctcaeInfo()
+}
 
 export const STAGE_LABELS = {
   newly_diagnosed: '刚确诊',
@@ -265,7 +281,7 @@ function splitByMethod(points) {
 }
 
 /** 指标卡：每项一条，含"较前次"的中性差值（不做好坏着色）。 */
-export function metricCards(store, subjectId) {
+export function metricCards(store, subjectId, { withCtcae = true } = {}) {
   return metricSeries(store, subjectId).map((s) => ({
     code: s.code,
     name: s.name,
@@ -281,6 +297,9 @@ export function metricCards(store, subjectId) {
     note: s.note,
     hasData: s.hasData,
     breakCount: Math.max(0, s.segments.length - 1),
+    // CTCAE v5.0 对照（2026-10-20 用户定则）：只对最新值给分级；分级是客观区间对照，
+    // 不是诊断（disclaimer 随 ctcaeInfo 透传给前端，前端必须显示来源与免责）。
+    ctcae: withCtcae && s.latest ? gradeCtcae(s.code, s.latest.value) : null,
   }))
 }
 

@@ -24,7 +24,7 @@ import {
   symptomList, questionList, taskList, viewpointList, treatmentList, diagnosisList,
   careList, renderVisitMarkdown, exportFingerprint, hashOf, exportHistory,
   subjectState, STAGE_LABELS, CATEGORY, POINT_LABELS, ARM_POINTS,
-  TREATMENT_KIND_LABELS, SYMPTOM_LABELS, TASK_KIND_LABELS, CARE_KIND_LABELS,
+  TREATMENT_KIND_LABELS, SYMPTOM_LABELS, TASK_KIND_LABELS, CARE_KIND_LABELS, ctcaeMeta,
 } from './readmodels.js'
 
 const DB_NAME = 'pinkypal.sqlite'
@@ -291,6 +291,7 @@ export class Workbench {
       series: metricSeries(this.#store, subjectId),
       cards: metricCards(this.#store, subjectId),
       categories: Object.entries(CATEGORY).map(([code, meta]) => ({ code, ...meta })),
+      ctcae: ctcaeMeta(),
     }
   }
 
