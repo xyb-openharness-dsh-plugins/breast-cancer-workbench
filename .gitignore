@@ -14,3 +14,4 @@ coverage/
 
 # 项目工作数据（截图、会话记录），不进仓库；不要删这个目录
 .workbuddy/
+test/active.json

@@ -2,7 +2,7 @@
 import { api } from './api.js'
 
 export const S = {
-  version: '0.6.0',
+  version: '0.6.1',
   build: '',
   ready: false,
   state: null,

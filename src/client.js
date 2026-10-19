@@ -85,11 +85,25 @@
         width: '100%', maxWidth: '100%', boxSizing: 'border-box',
         background: '#fdf7f8', fontFamily: '-apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif',
       }
-      // 首个子元素必须是语义 <header>：宿主为 macOS 窗口按钮预留了 --dsh-frame-leading-clearance
+      // 首个子元素必须是语义 <header>：宿主为 macOS 窗口按钮预留了 --dsh-frame-leading-clearance。
+      // 布局（2026-10-19 真机反馈）：左侧 = 品牌 logo + 版本号；右侧 = AI 对话/收起按钮，紧贴右缘；
+      // 中间说明文字占位。色带整体调淡（中性浅灰粉，不再抢业务区的注意力）。
       const headerStyle = {
         display: 'flex', alignItems: 'center', gap: 10, flex: '0 0 auto', flexWrap: 'wrap',
         padding: '6px 12px', paddingInlineStart: 'var(--dsh-frame-leading-clearance, 12px)',
-        borderBottom: '1px solid #f0dde3', background: '#fbf1f4', fontSize: 12,
+        borderBottom: '1px solid #eee7ea', background: '#f7f4f5', fontSize: 12,
+      }
+      const brandStyle = {
+        display: 'flex', alignItems: 'center', gap: 7, fontWeight: 700, color: '#7a5560',
+        whiteSpace: 'nowrap', fontSize: 12.5,
+      }
+      const verStyle = {
+        fontWeight: 500, fontSize: 11, color: '#9a8b91', background: '#eee9eb',
+        borderRadius: 999, padding: '1px 8px', whiteSpace: 'nowrap',
+      }
+      const hintStyle = { flex: 1, minWidth: 200, color: '#a39aa0', fontSize: 11.5 }
+      const headerActionsStyle = {
+        display: 'flex', alignItems: 'center', gap: 6, flex: '0 0 auto', marginLeft: 'auto',
       }
       const bodyStyle = { position: 'relative', display: 'flex', flex: 1, minHeight: 0, minWidth: 0, overflow: 'hidden' }
       const businessStyle = { flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column' }
@@ -110,9 +124,9 @@
       const fallbackStyle = { padding: 24, color: '#4a3b41', fontSize: 14, lineHeight: 1.7 }
       const buttonStyle = {
         border: 0, borderRadius: 999, padding: '5px 14px', whiteSpace: 'nowrap',
-        background: '#d9698a', color: '#fff', font: 'inherit', fontWeight: 600, cursor: 'pointer',
+        background: '#c97991', color: '#fff', font: 'inherit', fontWeight: 600, cursor: 'pointer',
       }
-      const ghostStyle = { ...buttonStyle, background: 'transparent', color: '#a4506b', border: '1px solid #e8c4d0' }
+      const ghostStyle = { ...buttonStyle, background: 'transparent', color: '#8d6b78', border: '1px solid #e2dade' }
       const padStyle = {
         display: 'flex', flexDirection: 'column', gap: 8, justifyContent: 'center',
         padding: 20, color: '#6b5560', fontSize: 12.5, lineHeight: 1.75,
@@ -336,22 +350,29 @@
 
         return h('div', { style: rootStyle },
           h('header', { style: headerStyle },
-            h('button', {
-              type: 'button',
-              style: buttonStyle,
-              onClick: onAgentClick,
-              disabled: connecting || !canOpenSession,
-              'aria-label': `AI 对话：${agentLabel}`,
-            }, agentLabel),
-            // 会话已绑定时给一个明确的收起控件，不把关闭藏在面板内部（合同 §1）
-            hasConversation && paneOpen && h('button', {
-              type: 'button', style: ghostStyle, onClick: () => setPaneOpen(false),
-            }, '×'),
-            h('span', { style: { color: '#8a6b76' } },
+            // 左侧：品牌 + 版本号（真机反馈：版本号放 logo 边上，不再只藏在业务页右上角）
+            h('span', { style: brandStyle }, `🎀 ${TITLE}`),
+            h('span', { style: verStyle }, `v${VERSION}`),
+            h('span', { style: hintStyle },
               hasConversation
                 ? '右侧是 DSH 原生会话：可拖中间分隔边调整宽度（25%–45%），收起不会结束会话。'
-                : '还没有会话。点「AI 对话」调起原生会话，开场白只填进草稿，不自动发送。'),
-            note && h('span', { style: { color: '#a4506b', fontWeight: 600 } }, note),
+                : '还没有会话。点右侧「AI 对话」调起原生会话，开场白只填进草稿，不自动发送。'),
+            // 右侧：按钮组，margin-left:auto 紧贴右缘（真机反馈：按钮不占左位）
+            h('div', { style: headerActionsStyle },
+              h('button', {
+                type: 'button',
+                style: buttonStyle,
+                onClick: onAgentClick,
+                disabled: connecting || !canOpenSession,
+                'aria-label': `AI 对话：${agentLabel}`,
+              }, agentLabel),
+              // 会话已绑定时给一个明确的收起控件，不把关闭藏在面板内部（合同 §1）
+              hasConversation && paneOpen && h('button', {
+                type: 'button', style: ghostStyle, onClick: () => setPaneOpen(false),
+                'aria-label': '收起 AI 对话面板',
+              }, '×'),
+              note && h('span', { style: { color: '#a4506b', fontWeight: 600 } }, note),
+            ),
           ),
           h('div', { ref: shellRef, style: bodyStyle },
             h('div', { style: businessStyle },
