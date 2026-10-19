@@ -12,7 +12,7 @@
  * 的客观区间对照；实现与免责见 dsh/ctcae.js。
  */
 
-import { ctcaeGrade, ctcaeInfo } from './ctcae.js'
+import { ctcaeGrade, ctcaeInfo, ctcaeCoveredCodes } from './ctcae.js'
 
 /** 指标卡用的 CTCAE 对照；gradeCtcae 返回 null 表示该指标无定义，不透传字段。 */
 function gradeCtcae(code, value) {
@@ -77,12 +77,27 @@ export const SYMPTOM_LABELS = {
   tightness: '紧绷',
   swelling: '肿胀',
   fatigue: '疲乏',
+  dizziness: '头晕',
   hot_flash: '潮热 / 盗汗',
   joint_pain: '关节痛 / 僵硬',
   skin_rxn: '放疗区皮肤反应',
   le_symptom: '上肢沉重 / 紧绷',
   ai_joint: '关节痛 / 僵硬',
 }
+
+/**
+ * 骨髓抑制的两个面（用户 2026-10-20 定则）：
+ * - 表达面：身体感受——头晕、疲乏（`MARROW_SYMPTOM_CODES`）；
+ * - 指标面：血常规里中性粒细胞绝对值等下降（`ctcaeCoveredCodes()` 即 CTCAE v5.0 有定义的那几项）。
+ *
+ * 两个面**都只呈现已记录的内容**，不做因果推断：工作台不说"这是骨髓抑制导致的"，
+ * 也不说"需要处理"；它只在同一段时间里把两列并排放着，并把指标按国际分级标准（CTCAE）
+ * 对照到客观区间——**对照不是诊断**。
+ */
+export const MARROW_SYMPTOM_CODES = ['fatigue', 'dizziness']
+
+/** 指标面 = CTCAE v5.0 里有绝对阈值定义的那几项（与 dsh/ctcae.js 同一来源，不另抄一份）。 */
+export const MARROW_METRIC_CODES = ctcaeCoveredCodes()
 
 export const TASK_KIND_LABELS = {
   self: '本人安排',
@@ -390,6 +405,56 @@ export function symptomList(store, subjectId, { includePrivate = false } = {}) {
     subjectRole: r.subject_role,
     isPrivate: Boolean(r.is_private),
   }))
+}
+
+/**
+ * 化疗后常见反应「骨髓抑制」的对照条目（读取时算，不落库）。
+ *
+ * `paired` 是唯一的提醒开关：只有**表达面（头晕/疲乏）与指标面（血常规有 CTCAE 级）都出现了**，
+ * 才作为看板提醒成立。只有指标有级、没记相关感受时 `labsOnly=true`，看板不弹提醒——
+ * 指标卡上的 CTCAE 徽章照常显示，因为那是**对照**，不是提醒。
+ * 反过来只有感受、没有指标时，这里什么都不生成：工作台不拿感受去猜指标。
+ */
+export function marrowSuppression(store, subjectId) {
+  const ctcae = ctcaeInfo()
+  const labs = metricCards(store, subjectId)
+    .filter((c) => c.ctcae?.grade && MARROW_METRIC_CODES.includes(c.code))
+    .map((c) => ({
+      code: c.code,
+      name: c.name,
+      value: c.latest.value,
+      unit: c.unit,
+      dec: c.dec,
+      date: c.latest.date,
+      source: c.latest.source,
+      grade: c.ctcae.grade,
+      band: c.ctcae.band,
+      term: c.ctcae.term,
+      approx: c.ctcae.approx,
+    }))
+    .sort((a, b) => b.grade - a.grade || String(b.date).localeCompare(String(a.date)))
+
+  const seen = new Set()
+  const symptoms = []
+  for (const s of symptomList(store, subjectId)) {
+    if (!MARROW_SYMPTOM_CODES.includes(s.code) || seen.has(s.code)) continue
+    seen.add(s.code)
+    symptoms.push({
+      code: s.code, label: s.label, level: s.level, occurredOn: s.occurredOn, note: s.note,
+    })
+  }
+
+  return {
+    label: '骨髓抑制',
+    paired: symptoms.length > 0 && labs.length > 0,
+    labsOnly: symptoms.length === 0 && labs.length > 0,
+    symptoms,
+    labs,
+    highestGrade: labs.length ? Math.max(...labs.map((l) => l.grade)) : null,
+    ctcae,
+    note: '感受与指标是同一件事的两个面。这里只把已经记录的内容并列摆出，不推断因果，也不判断是否需要处理。',
+    disclaimer: ctcae.disclaimer,
+  }
 }
 
 /* 默认**不含**私密条目：默认开启等于让每个新调用点都漏一次（A12/A27）。
@@ -732,6 +797,8 @@ export function overview(store, subjectId) {
       actual: treatments.filter((t) => t.isActual).length,
     },
     symptoms: { total: symptoms.length, latest: latestSymptom },
+    // 化疗后常见反应的对照（表达面 + 指标面）。paired=false 时前端不弹看板提醒。
+    marrow: marrowSuppression(store, subjectId),
     recent,
     newestRecordAt: newest?.at ?? null,
   }

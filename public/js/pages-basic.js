@@ -1,8 +1,9 @@
 /** 页面渲染：看板 / 病情整理 / 一图秀。 */
 import { S, STAGE_HINT, SYMPTOM_CODES, categoryOrder } from './state.js'
+import { apiBase } from './api.js'
 import {
   esc, fmtNum, unitText, longDate, shortDate, relTime, today, btn, go, pill, section, head, empty,
-  timelineChart, legendHTML, metricCard, armChart, symptomTrack, sparkline,
+  timelineChart, legendHTML, metricCard, gradeBadge, armChart, symptomTrack, sparkline,
 } from './ui.js'
 
 export const PAGES = [
@@ -90,6 +91,39 @@ export function dashboard() {
         <div class="actions">${btn('＋ 记录一次测量', 'add-arm', 'primary')}</div>
       </div>`
 
+  /**
+   * 骨髓抑制提醒（用户 2026-10-20 定则）：把"表达上的头晕无力"与"指标上的中性粒细胞低"
+   * 并排放在一起，指标侧用 CTCAE v5.0 分级对照。
+   *
+   * 三条边界：
+   * 1. 只在读模型 `paired`（感受与指标都记录了）时出现——只有一侧不构成提醒；
+   * 2. 只**并置**已记录的内容，不写因果（不说"因为血象低所以头晕"）；
+   * 3. 分级是对照国际标准的客观区间，明写"对照不是诊断"，是否处理交给治疗团队。
+   */
+  const marrowStrip = (() => {
+    const marrow = o.marrow
+    if (!marrow?.paired) return ''
+    const ver = d().metrics?.ctcae?.version ?? ''
+    const hasChemo = (d().clinical?.treatments ?? []).some((t) => t.kind === 'chemo')
+    const when = hasChemo ? '化疗后' : '治疗期间'
+    return `<div class="alert-strip marrow">
+      <div style="flex:1;min-width:260px">
+        <b>${when}常见反应 · 骨髓抑制：你记录到的两侧</b>
+        <p>表达上是${esc(marrow.symptoms.map((s) => s.label).join('、'))}，指标上是${esc(marrow.labs.map((l) => l.name).join('、'))}。分级对照 CTCAE v${esc(ver)}（国际标准）的客观区间，只是把记录值放进区间里——<b>对照不是诊断</b>，是否处理由治疗团队判断。</p>
+        <div class="marrow-cols">
+          <div class="marrow-col"><span class="marrow-key">你记录的感受</span>
+            ${marrow.symptoms.map((s) => `<span class="marrow-item"><b>${esc(s.label)}</b>强度 ${s.level}/3<small>${longDate(s.occurredOn)}${s.note ? ` · ${esc(s.note)}` : ''}</small></span>`).join('')}
+          </div>
+          <div class="marrow-col"><span class="marrow-key">记录里的血液学指标</span>
+            ${marrow.labs.map((l) => `<span class="marrow-item"><b>${esc(l.name)} ${fmtNum(l.value, l.dec)} ${esc(unitText(l.unit))}</b>${gradeBadge(l.grade, ver)}<small>${longDate(l.date)} · ${esc(l.band ?? '')} · ${esc(l.source)}</small></span>`).join('')}
+          </div>
+        </div>
+        <p class="small-note" style="margin-top:6px">${esc(marrow.note)}</p>
+      </div>
+      <div class="actions">${go('看血常规指标 ↗', 'records', '指标检测', 'soft')}${btn('记一条感受', 'add-symptom', 'soft')}</div>
+    </div>`
+  })()
+
   const docsText = docs.total === 0
     ? '还没有资料 · 先导入一份'
     : `${docs.parsed} 份已解析${docs.pendingCandidates ? ` · ${docs.pendingCandidates} 项待核对` : ' · 无待核对'}${docs.failed ? ` · ${docs.failed} 份解析失败` : ''}`
@@ -114,6 +148,7 @@ export function dashboard() {
   ${demoBanner()}
   ${docs.pendingCandidates ? `<div class="banner rose"><span><b>${docs.pendingCandidates} 项整理结果待核对</b>：核对只表示"转录检查过"，不等于医学审核。</span>${go('去核对', 'records', '整理草稿 / 核对', 'soft')}</div>` : ''}
   ${armStrip}
+  ${marrowStrip}
   <div class="grid three" style="margin-bottom:16px">
     <button class="task-entry" data-action="stage-help"><span class="entry-icon">◔</span><b>${esc(stage?.label ?? '还没选阶段')}，现在该注意什么</b><span>按阶段列出可记录、可询问的事</span><span class="arrow">↗</span></button>
     <button class="task-entry" data-action="add-symptom"><span class="entry-icon">＋</span><b>今天手臂有点沉</b><span>记症状，或量一次四点位</span><span class="arrow">↗</span></button>
@@ -333,18 +368,57 @@ function statusWord(v) {
   }[v] ?? '未写'
 }
 
-function recordsMetrics() {
-  const cards = d().metrics?.cards ?? []
+/**
+ * 指标卡按类别分组（用户 2026-10-20 定则：一张平铺的网格读不出"这是血象还是标志物"）。
+ * 顺序跟 `categoryOrder` 走，与一图秀左侧的指标列表同一套次序，避免两处各排各的。
+ */
+function metricGroupsHTML(cards) {
+  const ver = d().metrics?.ctcae?.version ?? ''
   const groups = new Map()
   for (const card of cards) {
     if (!groups.has(card.categoryLabel)) groups.set(card.categoryLabel, [])
     groups.get(card.categoryLabel).push(card)
   }
   const order = [...groups.keys()].sort((a, b) => categoryOrder.indexOf(a) - categoryOrder.indexOf(b))
+  return order.map((cat) => {
+    const list = groups.get(cat)
+    const graded = list.filter((c) => c.ctcae?.grade).length
+    return `<div class="metric-group"><div class="metric-group-head"><h3>${esc(cat)}</h3>
+        <span>${list.length} 项${graded ? ` · ${graded} 项有 CTCAE 对照` : ''}</span></div>
+      <div class="metric-grid">${list.map((card) => metricCard(card, S.flipped.has(card.code), ver)).join('')}</div></div>`
+  }).join('')
+}
+
+/**
+ * CTCAE 对照说明：说明"分级从哪来、覆盖哪几项、不是什么"。
+ * 指标分析页带头引用，方便对照标准原文（PDF 随仓库分发，也在设置页可开）。
+ */
+function ctcaeReference() {
+  const meta = d().metrics?.ctcae
+  if (!meta) return ''
+  const covered = (d().metrics?.cards ?? []).filter((c) => c.ctcae?.grade)
+  return `<div class="notice plain ctcae-ref">
+    <div><b>分级对照用的是 CTCAE v${esc(meta.version)}</b>（${esc(meta.publisher)}，${esc(meta.published)} 出版）——
+      国际通用的不良事件术语标准，把化验值放进客观区间。<b>对照不是诊断</b>，也不是疗效判断；是否处理由治疗团队决定。</div>
+    <div class="ctcae-ref-cols">
+      <div><span class="marrow-key">这一版能对照的项</span>
+        <p>白细胞、中性粒细胞绝对值、血红蛋白、血小板——这四项在标准里有<b>绝对数值界限</b>，可以直接用。
+        ALT/AST/肌酐一类"×正常上限"的条目需要化验单上的参考范围上限，本地没有就不启用，也不近似。</p></div>
+      <div><span class="marrow-key">怎么看这个级</span>
+        <p>卡上的徽章写"对照 CTCAE v${esc(meta.version)} · N 级"，翻到背面看这一级对应的数值区间。
+        用了成人通用正常下限的地方会标"按通用下限近似"——以你化验单上的参考范围为准。</p></div>
+    </div>
+    ${covered.length ? `<p class="small-note" style="margin-top:6px">当前档案里有 ${covered.length} 项落在对照区间内：${esc(covered.map((c) => `${c.name}（${c.ctcae.grade} 级）`).join('、'))}。</p>` : '<p class="small-note" style="margin-top:6px">当前档案里还没有指标落到对照区间内。</p>'}
+    <div class="actions" style="margin-top:8px"><a class="source-link" href="${esc(apiBase())}/reference/ctcae" target="_blank" rel="noreferrer">标准原文 PDF ↗</a><a class="source-link" href="${esc(meta.sourceUrl)}" target="_blank" rel="noreferrer">NCI 发布页 ↗</a></div>
+  </div>`
+}
+
+function recordsMetrics() {
+  const cards = d().metrics?.cards ?? []
   return `<div class="notice">趋势只呈现记录，不代表疗效、复发或诊断判断；不同单位与方法需分开核对。方法变化时线会断开，不拼接。</div>
+  ${ctcaeReference()}
   <div class="form-actions" style="margin:-4px 0 10px">${btn('＋ 手工补录一个值', 'add-observation', 'primary')}${btn('去一图秀看趋势', 'go', 'soft', 'data-page="timeline"')}</div>
-  ${order.map((cat) => `<div class="metric-group"><div class="metric-group-head"><h3>${esc(cat)}</h3><span>${groups.get(cat).length} 项</span></div>
-    <div class="metric-grid">${groups.get(cat).map((card) => metricCard(card, S.flipped.has(card.code))).join('')}</div></div>`).join('')}
+  ${metricGroupsHTML(cards)}
   <div class="help-box">点一张卡，原地翻转看最近几次；卡片位置和尺寸不变。没有记录的指标也会列出，避免"没显示 = 正常"的误读。</div>`
 }
 
@@ -453,12 +527,17 @@ export function chartPanel() {
 }
 
 export function timelinePage() {
+  const cards = (d().metrics?.cards ?? []).filter((c) => c.hasData)
+  const graded = cards.filter((c) => c.ctcae?.grade)
+  const cardNote = graded.length
+    ? `按类别分组 · ${graded.length} 项带 CTCAE v${d().metrics?.ctcae?.version ?? ''} 分级对照（对照不是诊断）`
+    : '按类别分组 · 点一张卡，原地翻转看最近几次'
   return head('病情一图秀', SUBTITLES.timeline, btn('准备讨论的问题', 'add-question', 'primary')) +
   `<div class="overview">${rail()}<div class="timeline-main">${chartPanel()}
      <section class="card"><div class="card-head"><div><h3>症状轨道</h3><p>与曲线同处一段时间，但不与数值混在一起。</p></div>${pill('0–3 自评', 'grey')}</div>${symptomTrack(d().symptoms?.list ?? [])}</section>
    </div></div>
-   ${section('指标卡片', '点一张卡，原地翻转看最近几次；卡片位置和尺寸不变。', go('去指标检测 ↗', 'records', '指标检测', 'text-button'))}
-   <div class="metric-grid">${(d().metrics?.cards ?? []).filter((c) => c.hasData).map((c) => metricCard(c, S.flipped.has(c.code))).join('')}</div>
+   ${section('指标卡片', esc(cardNote), go('去指标检测 ↗', 'records', '指标检测', 'text-button'))}
+   ${cards.length ? metricGroupsHTML(cards) : empty('还没有任何指标记录', '导入一份检验单或手工补录一个值，卡片会按类别出现在这里。')}
    ${section('治疗时间线', '计划与实际分开；这里只列已经记录的行程。')}
    <section class="card">
      ${(d().clinical?.treatments ?? []).length ? (d().clinical.treatments).map((t) => `<div class="row"><div><b>${esc(t.kindLabel)}：${esc(t.name)}</b><p>${longDate(t.start)}${t.end && t.end !== t.start ? ` — ${longDate(t.end)}` : ''} · ${t.isActual ? '实际接受' : '计划'}${t.axillaryProcedure ? ` · 腋窝处理：${esc(t.axillaryProcedure)}` : ''}${t.radiationField ? ` · 放疗野：${esc(t.radiationField)}` : ''}</p></div>${pill(t.statusLabel, t.status === 'ongoing' ? 'green' : 'grey')}</div>`).join('') : '<p class="small-note" style="margin:0">还没有治疗记录。导入治疗文书并核对后，或手工补录后，会出现在这里。</p>'}

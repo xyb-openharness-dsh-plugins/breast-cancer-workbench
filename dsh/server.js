@@ -26,8 +26,11 @@ import { dirname, extname, join, normalize, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { AppError, Workbench, MAX_UPLOAD } from './workbench.js'
 import { ImportError } from './import.js'
+import { CTCAE_META } from './ctcae.js'
 
 const DEFAULT_PUBLIC = fileURLToPath(new URL('../public/', import.meta.url))
+/** 仓库根：`assets/` 与 `public/` 同级，引用类静态文件从这里出（不在 public/ 复制一份）。 */
+const REPO_ROOT = fileURLToPath(new URL('../', import.meta.url))
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -270,6 +273,33 @@ export class WorkbenchServer {
     if (method === 'GET' && path === '/api/health') {
       // dir 只在面板里用来调起原生会话（ensureSession 的 folder）；本机同源，无泄露面。
       sendJson(res, 200, { ok: true, version: this.version, ready: this.ready, dir: wb?.dir ?? null })
+      return
+    }
+
+    if (method === 'GET' && path === '/api/reference/ctcae') {
+      // 分级标准的原文（随包分发的 PDF）。三件事说清楚：
+      // 1. 单一来源：只在 assets/reference/ctcae/ 放一份，不在 public/ 复制；
+      // 2. 不能变成任意文件读：文件名取自冻结的 CTCAE_META，且必须仍在该目录内；
+      // 3. 缺失时不假装有：明确报 NOT_FOUND，让界面去指 NCI 发布页。
+      const rel = CTCAE_META.localPdf
+      const dir = resolve(REPO_ROOT, dirname(rel))
+      const full = resolve(REPO_ROOT, rel)
+      if (full !== dir && !full.startsWith(`${dir}${sep}`)) {
+        throw new AppError('UNSAFE_PATH', '引用文件路径不合法', 400)
+      }
+      let body = null
+      try { body = await readFile(full) } catch { body = null }
+      if (!body) {
+        throw new AppError('NOT_FOUND', '标准原文没有随包分发（assets/reference/ctcae/ 缺失），可先看 NCI 发布页', 404)
+      }
+      res.writeHead(200, {
+        ...SECURITY_HEADERS,
+        'content-type': 'application/pdf',
+        'content-length': body.length,
+        'cache-control': 'no-cache',
+      })
+      if (req.method === 'HEAD') res.end()
+      else res.end(body)
       return
     }
 

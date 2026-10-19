@@ -127,6 +127,7 @@ export const SYMPTOM_CODES = [
   ['joint_pain', '关节痛 / 僵硬'],
   ['hot_flash', '潮热 / 盗汗'],
   ['fatigue', '疲乏'],
+  ['dizziness', '头晕'],
   ['skin_rxn', '放疗区皮肤反应'],
 ]
 
