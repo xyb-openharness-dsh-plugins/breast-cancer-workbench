@@ -27,6 +27,7 @@ import { fileURLToPath } from 'node:url'
 import { AppError, Workbench, MAX_UPLOAD } from './workbench.js'
 import { ImportError } from './import.js'
 import { CTCAE_META } from './ctcae.js'
+import { AGENT_SCOPES, buildAgentContext } from './agent-context.js'
 
 const DEFAULT_PUBLIC = fileURLToPath(new URL('../public/', import.meta.url))
 /** 仓库根：`assets/` 与 `public/` 同级，引用类静态文件从这里出（不在 public/ 复制一份）。 */
@@ -125,6 +126,7 @@ const decodeHeader = (value) => {
 const API_KNOWN = {
   GET: [
     /^\/api\/(overview|metrics|arm|symptoms|questions|tasks|viewpoints|documents|draft|clinical|care|nutrition|mind|exports|saved|demos)$/,
+    /^\/api\/agent\/context$/,
     /^\/api\/fs\/dirs$/,
     /^\/api\/documents\/[^/]+\/text$/,
   ],
@@ -277,6 +279,20 @@ export class WorkbenchServer {
     if (method === 'GET' && path === '/api/health') {
       // dir 只在面板里用来调起原生会话（ensureSession 的 folder）；本机同源，无泄露面。
       sendJson(res, 200, { ok: true, version: this.version, ready: this.ready, dir: wb?.dir ?? null })
+      return
+    }
+
+    if (method === 'GET' && path === '/api/agent/context') {
+      // 「与 Agent 讨论」的上下文草稿：只读、无副作用，草稿由用户在前端预览确认后才填进会话。
+      // codes 最多 4 个（与一图秀的选择上限一致），多的直接忽略而不是报错。
+      const scope = url.searchParams.get('scope') || 'timeline'
+      if (!AGENT_SCOPES.includes(scope)) {
+        throw new AppError('BAD_SCOPE', `不认识的上下文范围：${scope}`, 400, { scopes: AGENT_SCOPES })
+      }
+      const codes = String(url.searchParams.get('codes') || '')
+        .split(',').map((s) => s.trim()).filter(Boolean).slice(0, 4)
+      const includePrivate = url.searchParams.get('includePrivate') === '1'
+      sendJson(res, 200, buildAgentContext(wb, scope, { codes, includePrivate }))
       return
     }
 

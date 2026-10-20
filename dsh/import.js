@@ -356,8 +356,12 @@ export class ImportService {
     const ids = documents.map((d) => d.id)
     const placeholders = ids.length ? ids.map(() => '?').join(',') : "''"
     const rows = ids.length
-      ? this.db.prepare(`SELECT * FROM candidate WHERE document_id IN (${placeholders})
-          ORDER BY field, value_text`).all(...ids)
+      // 带上已接受事实的日期：接受时日期写在 record 上，候选自己的 occurred_on 仍是空。
+      // 不加这一列，草稿列表与「与 Agent 讨论」就会把已入库的事实显示成"日期未填"。
+      ? this.db.prepare(`SELECT c.*, r.occurred_on AS record_occurred_on FROM candidate c
+          LEFT JOIN record r ON r.id = c.record_id
+          WHERE c.document_id IN (${placeholders})
+          ORDER BY c.field, c.value_text`).all(...ids)
       : []
 
     const conflictKeys = new Set()
@@ -368,13 +372,16 @@ export class ImportService {
     }
     for (const [field, values] of group) if (values.size > 1) conflictKeys.add(field)
 
-    const withIssues = (c, doc) => {
+    const withIssues = (row, doc) => {
+      // record_occurred_on 只是查询用的连接列，不往接口里带（候选的形状保持原样）
+      const { record_occurred_on: recordDate, ...c } = row
       const issues = this.#issues(c, conflictKeys.has(c.field))
       return {
         candidate: c,
         fileName: doc?.filename ?? null,
-        // 建议日期：候选自带 > 材料报告日期 > 空（界面这时必须让用户填，不许拿导入时间顶）
-        suggestedDate: c.occurred_on ?? doc?.report_date ?? null,
+        // 建议日期：候选自带 > 已入库事实的日期 > 材料报告日期 > 空
+        // （界面这时必须让用户填，不许拿导入时间顶）
+        suggestedDate: c.occurred_on ?? recordDate ?? doc?.report_date ?? null,
         issues,
         canAutoAccept: issues.length === 0,
       }
