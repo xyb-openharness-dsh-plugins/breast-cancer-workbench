@@ -1,6 +1,6 @@
 # 指标分级与卡片提醒（本仓实现）
 
-> 原则见脚手架 [docs/23-METRIC-GRADING-AND-ALERTS.md](../../xyb-workbench-starter/docs/23-METRIC-GRADING-AND-ALERTS.md)。
+> 原则见脚手架仓 `xyb-workbench-starter` 的 `docs/23-METRIC-GRADING-AND-ALERTS.md`（v1.4.2 起）。
 > 本文只写**这一仓怎么落地**：文件位置、阈值、状态机与验收。改行为前先读原则，别只改代码。
 
 引入版本：v0.7.0（2026-10-20，用户定则：指标卡要分组；化疗后并发症如骨髓抑制，表达上是头晕无力、指标上是中性粒细胞低，用 CTCAE 分级对照）。
