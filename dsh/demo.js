@@ -156,25 +156,27 @@ function buildDemo1(store, { workspaceId, rnd }) {
     plannedStart: '2026-06-20', actualStart: '2026-06-20', status: 'ongoing', note: '模拟数据',
   })
 
-  // 化疗期血常规：4 项 × 12 次 = 48
+  /* 序列一律延续到 10 月：最近 6 个月内每 2–4 周一个点，一图秀才画得出走向（2026-10-20 统一加密）。
+     影像/心功能/骨扫描不跟着加密——那些检查真实频率就是几个月一次，加密等于编数据。 */
+  // 血常规 4 项 × 18 次 = 72（含化疗期与随访期）
   for (const [code, base, spread, dec] of [['wbc', 4.2, 2.6, 2], ['anc', 2.1, 1.8, 2], ['hgb', 112, 16, 0], ['plt', 190, 90, 0]]) {
-    series(store, subject.id, code, { start: '2026-02-10', stepDays: 14, count: 12, base, spread, dec, rnd })
+    series(store, subject.id, code, { start: '2026-02-10', stepDays: 14, count: 18, base, spread, dec, rnd })
   }
-  // 生化 2 × 8 = 16
-  series(store, subject.id, 'alt', { start: '2026-02-24', stepDays: 21, count: 8, base: 28, spread: 18, dec: 0, rnd })
-  series(store, subject.id, 'cr', { start: '2026-02-24', stepDays: 21, count: 8, base: 62, spread: 10, dec: 0, rnd })
-  // 肿瘤标志物 2 × 6 = 12
-  series(store, subject.id, 'ca153', { start: '2026-01-22', stepDays: 45, count: 6, base: 16, spread: 5, dec: 1, method: 'ECLIA', rnd })
-  series(store, subject.id, 'cea', { start: '2026-01-22', stepDays: 45, count: 6, base: 2.1, spread: 0.8, dec: 1, method: 'ECLIA', rnd })
+  // 生化 2 × 12 = 24
+  series(store, subject.id, 'alt', { start: '2026-02-24', stepDays: 21, count: 12, base: 28, spread: 18, dec: 0, rnd })
+  series(store, subject.id, 'cr', { start: '2026-02-24', stepDays: 21, count: 12, base: 62, spread: 10, dec: 0, rnd })
+  // 肿瘤标志物 2 × 9 = 18（随访期每月一次）
+  series(store, subject.id, 'ca153', { start: '2026-01-22', stepDays: 30, count: 9, base: 16, spread: 5, dec: 1, method: 'ECLIA', rnd })
+  series(store, subject.id, 'cea', { start: '2026-01-22', stepDays: 30, count: 9, base: 2.1, spread: 0.8, dec: 1, method: 'ECLIA', rnd })
   // 心功能与骨健康 3 + 1
   series(store, subject.id, 'lvef', { start: '2026-01-12', stepDays: 120, count: 3, base: 65, spread: 3, dec: 0, method: '超声心动图', rnd })
   series(store, subject.id, 'bmd_ls', { start: '2026-07-30', stepDays: 1, count: 1, base: -1.3, spread: 0.2, dec: 1, method: 'DXA', rnd })
-  // 体成分 2 × 12 = 24
-  series(store, subject.id, 'weight', { start: '2026-02-10', stepDays: 14, count: 12, base: 63, spread: 1.6, dec: 1, drift: -0.15, rnd })
-  series(store, subject.id, 'bmi', { start: '2026-02-10', stepDays: 14, count: 12, base: 24.4, spread: 0.6, dec: 1, drift: -0.05, rnd })
+  // 体成分 2 × 18 = 36
+  series(store, subject.id, 'weight', { start: '2026-02-10', stepDays: 14, count: 18, base: 63, spread: 1.6, dec: 1, drift: -0.15, rnd })
+  series(store, subject.id, 'bmi', { start: '2026-02-10', stepDays: 14, count: 18, base: 24.4, spread: 0.6, dec: 1, drift: -0.05, rnd })
   // 术后引流 6
   series(store, subject.id, 'drain_vol', { start: '2026-01-21', stepDays: 1, count: 6, base: 55, spread: 30, dec: 0, rnd })
-  // 康复测量 3 × 4 = 12
+  // 康复测量 3 × 4 = 12（康复评估约 2.5 个月一次；最后一点 10-13，不画到未来）
   series(store, subject.id, 'grip', { start: '2026-03-02', stepDays: 75, count: 4, base: 22, spread: 3, dec: 1, method: '握力计', rnd })
   series(store, subject.id, 'arm_flex', { start: '2026-03-02', stepDays: 75, count: 4, base: 158, spread: 10, dec: 0, method: '量角器', rnd })
   series(store, subject.id, 'arm_abd', { start: '2026-03-02', stepDays: 75, count: 4, base: 138, spread: 12, dec: 0, method: '量角器', rnd })
@@ -271,20 +273,26 @@ function buildDemo3(store, { workspaceId, rnd }) {
     actualStart: '2026-06-01', actualEnd: '2026-07-10', status: 'completed', note: '模拟数据',
   })
 
+  /* 各序列的最后一点都收在 2026-10-17 之前：模拟数据可以虚构，但不能虚构"还没发生的检查"。
+     放疗 5 月结束、随访到 10 月，6 个月窗口内每项都有 6–8 个点。 */
   for (const [code, base, spread, dec] of [['wbc', 5.1, 1.8, 2], ['anc', 2.8, 1.2, 2], ['hgb', 121, 12, 0], ['plt', 210, 60, 0]]) {
-    series(store, subject.id, code, { start: '2026-05-06', stepDays: 21, count: 10, base, spread, dec, rnd })
+    series(store, subject.id, code, { start: '2026-05-06', stepDays: 21, count: 8, base, spread, dec, rnd })
   }
-  series(store, subject.id, 'alt', { start: '2026-05-06', stepDays: 28, count: 8, base: 24, spread: 12, dec: 0, rnd })
-  series(store, subject.id, 'cr', { start: '2026-05-06', stepDays: 28, count: 8, base: 58, spread: 8, dec: 0, rnd })
-  series(store, subject.id, 'ca153', { start: '2026-05-08', stepDays: 30, count: 10, base: 13, spread: 3, dec: 1, method: 'ECLIA', rnd })
-  series(store, subject.id, 'cea', { start: '2026-05-08', stepDays: 30, count: 10, base: 1.8, spread: 0.5, dec: 1, method: 'ECLIA', rnd })
+  // 放疗期间（6 月–7 月初）每周一次血常规：放疗期本就是每周查，这段密度比随访期高，且不画到未来
+  for (const [code, base, spread, dec] of [['wbc', 4.6, 1.4, 2], ['anc', 2.4, 1.0, 2], ['hgb', 118, 10, 0], ['plt', 196, 48, 0]]) {
+    series(store, subject.id, code, { start: '2026-06-01', stepDays: 7, count: 6, base, spread, dec, rnd })
+  }
+  series(store, subject.id, 'alt', { start: '2026-05-06', stepDays: 28, count: 6, base: 24, spread: 12, dec: 0, rnd })
+  series(store, subject.id, 'cr', { start: '2026-05-06', stepDays: 28, count: 6, base: 58, spread: 8, dec: 0, rnd })
+  series(store, subject.id, 'ca153', { start: '2026-05-08', stepDays: 30, count: 6, base: 13, spread: 3, dec: 1, method: 'ECLIA', rnd })
+  series(store, subject.id, 'cea', { start: '2026-05-08', stepDays: 30, count: 6, base: 1.8, spread: 0.5, dec: 1, method: 'ECLIA', rnd })
   series(store, subject.id, 'lvef', { start: '2026-05-06', stepDays: 120, count: 2, base: 66, spread: 2, dec: 0, method: '超声心动图', rnd })
   series(store, subject.id, 'bmd_ls', { start: '2026-08-01', stepDays: 1, count: 1, base: -0.6, spread: 0.1, dec: 1, method: 'DXA', rnd })
-  series(store, subject.id, 'weight', { start: '2026-05-06', stepDays: 21, count: 10, base: 59, spread: 1.2, dec: 1, rnd })
-  series(store, subject.id, 'bmi', { start: '2026-05-06', stepDays: 21, count: 10, base: 23.1, spread: 0.5, dec: 1, rnd })
-  series(store, subject.id, 'grip', { start: '2026-06-01', stepDays: 30, count: 6, base: 24, spread: 2, dec: 1, method: '握力计', rnd })
-  series(store, subject.id, 'arm_flex', { start: '2026-06-01', stepDays: 30, count: 6, base: 165, spread: 6, dec: 0, method: '量角器', rnd })
-  series(store, subject.id, 'arm_abd', { start: '2026-06-01', stepDays: 30, count: 6, base: 150, spread: 8, dec: 0, method: '量角器', rnd })
+  series(store, subject.id, 'weight', { start: '2026-05-06', stepDays: 21, count: 8, base: 59, spread: 1.2, dec: 1, rnd })
+  series(store, subject.id, 'bmi', { start: '2026-05-06', stepDays: 21, count: 8, base: 23.1, spread: 0.5, dec: 1, rnd })
+  series(store, subject.id, 'grip', { start: '2026-06-01', stepDays: 30, count: 5, base: 24, spread: 2, dec: 1, method: '握力计', rnd })
+  series(store, subject.id, 'arm_flex', { start: '2026-06-01', stepDays: 30, count: 5, base: 165, spread: 6, dec: 0, method: '量角器', rnd })
+  series(store, subject.id, 'arm_abd', { start: '2026-06-01', stepDays: 30, count: 5, base: 150, spread: 8, dec: 0, method: '量角器', rnd })
   series(store, subject.id, 'drain_vol', { start: '2026-05-07', stepDays: 1, count: 3, base: 35, spread: 15, dec: 0, rnd })
 
   // 没有腋窝清扫 → 臂围差长期 0.2–0.4
@@ -334,6 +342,11 @@ function buildDemo4(store, { workspaceId, rnd }) {
   }
   series(store, subject.id, 'alt', { start: '2024-04-02', stepDays: 60, count: 10, base: 32, spread: 16, dec: 0, rnd })
   series(store, subject.id, 'cr', { start: '2024-04-02', stepDays: 60, count: 10, base: 68, spread: 12, dec: 0, rnd })
+  /* 复发后化疗期（2026-08 起）的血常规：治疗期本来就是 1–2 周一次，不能沿用随访期的 60 天间隔。
+     原 60 天序列保留——它记录的是 2024–2026 年初的老过程，加密它等于把老数据改密。 */
+  for (const [code, base, spread, dec] of [['wbc', 3.2, 1.6, 2], ['anc', 1.5, 1.1, 2], ['hgb', 98, 12, 0], ['plt', 138, 55, 0]]) {
+    series(store, subject.id, code, { start: '2026-08-20', stepDays: 14, count: 5, base, spread, dec, rnd })
+  }
   // 指标断线：同指标换了方法（前 5 次 ECLIA，后 5 次 CLIA），前后不可比
   series(store, subject.id, 'ca153', { start: '2024-04-02', stepDays: 90, count: 5, base: 22, spread: 6, dec: 1, method: 'ECLIA', rnd })
   series(store, subject.id, 'ca153', { start: '2025-09-10', stepDays: 90, count: 5, base: 34, spread: 8, dec: 1, method: 'CLIA', rnd })
@@ -342,9 +355,14 @@ function buildDemo4(store, { workspaceId, rnd }) {
   series(store, subject.id, 'bmd_ls', { start: '2024-06-01', stepDays: 420, count: 2, base: -1.8, spread: 0.3, dec: 1, method: 'DXA', rnd })
   series(store, subject.id, 'weight', { start: '2024-04-02', stepDays: 60, count: 10, base: 61, spread: 2.2, dec: 1, rnd })
   series(store, subject.id, 'bmi', { start: '2024-04-02', stepDays: 60, count: 10, base: 24.8, spread: 0.8, dec: 1, rnd })
-  series(store, subject.id, 'grip', { start: '2026-08-20', stepDays: 14, count: 6, base: 17, spread: 3, dec: 1, method: '握力计', rnd })
-  series(store, subject.id, 'arm_flex', { start: '2026-08-20', stepDays: 14, count: 6, base: 132, spread: 12, dec: 0, method: '量角器', rnd })
-  series(store, subject.id, 'arm_abd', { start: '2026-08-20', stepDays: 14, count: 6, base: 118, spread: 14, dec: 0, method: '量角器', rnd })
+  // 复发化疗期的标志物与体重：按周期（3 周）查，最后一次落在 10-01，不画到未来
+  series(store, subject.id, 'ca153', { start: '2026-08-20', stepDays: 21, count: 3, base: 34, spread: 8, dec: 1, method: 'CLIA', rnd })
+  series(store, subject.id, 'cea', { start: '2026-08-20', stepDays: 21, count: 3, base: 3.2, spread: 1.0, dec: 1, method: 'ECLIA', rnd })
+  series(store, subject.id, 'weight', { start: '2026-08-20', stepDays: 21, count: 3, base: 59, spread: 1.8, dec: 1, rnd })
+  series(store, subject.id, 'bmi', { start: '2026-08-20', stepDays: 21, count: 3, base: 23.9, spread: 0.6, dec: 1, rnd })
+  series(store, subject.id, 'grip', { start: '2026-08-20', stepDays: 14, count: 5, base: 17, spread: 3, dec: 1, method: '握力计', rnd })
+  series(store, subject.id, 'arm_flex', { start: '2026-08-20', stepDays: 14, count: 5, base: 132, spread: 12, dec: 0, method: '量角器', rnd })
+  series(store, subject.id, 'arm_abd', { start: '2026-08-20', stepDays: 14, count: 5, base: 118, spread: 14, dec: 0, method: '量角器', rnd })
 
   // 故意不建 arm_set：laterality='bilateral' 时无法判定患健侧，必须由用户先选侧（A9 的前置）
   store.addSymptom({ subjectId: subject.id, code: 'pain', level: 2, occurredOn: '2026-09-30', bodySide: 'bilateral', note: '模拟' })
@@ -387,6 +405,17 @@ function buildDemo5(store, { workspaceId, rnd }) {
   series(store, subject.id, 'arm_flex', { start: '2025-05-20', stepDays: 20, count: 8, base: 152, spread: 8, dec: 0, method: '量角器', rnd })
   series(store, subject.id, 'arm_abd', { start: '2025-05-20', stepDays: 20, count: 8, base: 134, spread: 9, dec: 0, method: '量角器', rnd })
   series(store, subject.id, 'drain_vol', { start: '2025-04-09', stepDays: 1, count: 2, base: 40, spread: 12, dec: 0, rnd })
+  /* 随访期延续（2026-04 起）：原序列停在 2026 年初，最近 6 个月窗口里一个点都没有，
+     一图秀只会显示空。老序列不加密——保留它才能看出"这是长期随访的档案"。 */
+  for (const [code, base, spread, dec] of [['wbc', 5.4, 1.4, 2], ['anc', 3.0, 0.9, 2], ['hgb', 126, 10, 0], ['plt', 225, 45, 0]]) {
+    series(store, subject.id, code, { start: '2026-04-20', stepDays: 30, count: 7, base, spread, dec, rnd })
+  }
+  series(store, subject.id, 'alt', { start: '2026-04-20', stepDays: 30, count: 7, base: 22, spread: 10, dec: 0, rnd })
+  series(store, subject.id, 'cr', { start: '2026-04-20', stepDays: 30, count: 7, base: 60, spread: 7, dec: 0, rnd })
+  series(store, subject.id, 'ca153', { start: '2026-04-06', stepDays: 30, count: 7, base: 15, spread: 4, dec: 1, method: 'ECLIA', rnd })
+  series(store, subject.id, 'cea', { start: '2026-04-06', stepDays: 30, count: 7, base: 1.9, spread: 0.6, dec: 1, method: 'ECLIA', rnd })
+  series(store, subject.id, 'weight', { start: '2026-04-06', stepDays: 30, count: 7, base: 64, spread: 1.4, dec: 1, rnd })
+  series(store, subject.id, 'bmi', { start: '2026-04-06', stepDays: 30, count: 7, base: 25.2, spread: 0.6, dec: 1, rnd })
 
   for (const [date, diff] of [['2025-06-10', 1.1], ['2026-01-15', 1.6], ['2026-09-08', 1.9]]) {
     fourPointSet(store, subject.id, date, diff, { rnd })

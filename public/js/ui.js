@@ -163,6 +163,35 @@ export function timelineChart({ series = [], treatments = [], range = 'all', zoo
     return `<line class="grid" x1="${CX0}" x2="${CX1}" y1="${y}" y2="${y}"/>`
   }).join('')
 
+  // 末点标签统一排版（家族规范，与淋巴瘤/结直肠癌一致）：每条序列只在整体末点标一次数值；
+  // 按 y 排序后强制最小间距 13px，整体越出下缘时回推；右端贴近右缘时改左侧锚定，避免叠字与被裁
+  const scaleOf = (s) => {
+    const all = (s.points ?? []).map((p) => p.value)
+    const lo = Math.min(...all), hi = Math.max(...all)
+    return { lo, span: hi - lo || Math.max(Math.abs(hi) * 0.08, 1) }
+  }
+  const lastPos = visible.map((s) => {
+    const pts = (s.segments ?? [{ points: s.points }]).flatMap((seg) => (seg.points ?? []).filter((p) => {
+      const t = Date.parse(`${p.date}T00:00:00Z`)
+      return t >= t0 && t <= t1
+    }))
+    const last = pts[pts.length - 1]
+    if (!last) return null
+    const { lo, span } = scaleOf(s)
+    return {
+      s,
+      d: last.date,
+      x: xOf(Date.parse(`${last.date}T00:00:00Z`), t0, t1),
+      y: CY1 - (last.value - lo) / span * (CY1 - CY0),
+      v: last.value,
+    }
+  }).filter(Boolean).sort((a, b) => a.y - b.y)
+  let labelCursor = -Infinity
+  for (const it of lastPos) { it.ly = Math.max(it.y, labelCursor + 13); labelCursor = it.ly }
+  const labelOverflow = lastPos.length ? Math.max(0, lastPos[lastPos.length - 1].ly - (CY1 + 2)) : 0
+  if (labelOverflow) for (const it of lastPos) it.ly -= labelOverflow
+  const labelOf = new Map(lastPos.map((it) => [it.s.code, it]))
+
   const lines = visible.map((s, si) => {
     const all = (s.points ?? []).map((p) => p.value)
     const lo = Math.min(...all), hi = Math.max(...all)
@@ -199,8 +228,11 @@ export function timelineChart({ series = [], treatments = [], range = 'all', zoo
           }
         }
         let val = ''
-        if (toggles.keypoints && isLast) {
-          val = `<text x="${(c.x - 4).toFixed(1)}" y="${(c.y - 11 - (si % 2) * 13).toFixed(1)}" text-anchor="end" fill="${s.color}" font-size="11" font-weight="600">${fmtNum(p.value, s.dec)}</text>`
+        const lp = labelOf.get(s.code)
+        if (toggles.keypoints && lp && isLast && p.date === lp.d) {
+          const nearEnd = lp.x > CX1 - 46
+          const lx = nearEnd ? lp.x - 8 : lp.x + 8
+          val = `<text x="${lx.toFixed(1)}" y="${(lp.ly + 4).toFixed(1)}" text-anchor="${nearEnd ? 'end' : 'start'}" fill="${s.color}" font-size="11" font-weight="600">${fmtNum(lp.v, s.dec)}</text>`
         }
         const active = pin && pin.code === s.code && pin.date === p.date
         return `<circle class="pt${active ? ' active' : ''}" data-action="pin" data-code="${s.code}" data-date="${p.date}" cx="${c.x.toFixed(1)}" cy="${c.y.toFixed(1)}" r="${r}" fill="${s.color}"><title>${esc(s.name)} ${fmtNum(p.value, s.dec)} ${esc(unitText(s.unit))} · ${longDate(p.date)}</title></circle>${tag}${val}`
