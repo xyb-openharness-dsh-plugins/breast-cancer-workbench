@@ -378,3 +378,23 @@ test('原生会话始终挂载：隐藏走 display，不卸载（否则输入框
   assert.match(client, /收起只是隐藏，不是关闭\/删除会话/)
   assert.doesNotMatch(client, /removeSession|closeSession|endSession/)
 })
+
+/* ---------------- 「与 Agent 讨论」的送达（2026-10-20） ---------------- */
+
+test('页面草稿的送达只认自家 iframe 且同源，长度设上限', async () => {
+  const client = await readFile(new URL('../lib/client.js', import.meta.url), 'utf8')
+  assert.match(client, /'pinky:agent-draft'/, '消息类型要与 public/js/agent.js 一致')
+  // 双重校验：来源窗口必须是自己的 iframe，origin 必须同源——缺一条就等于接受任意页面注入的文本
+  assert.match(client, /event\.source !== frame\.contentWindow/)
+  assert.match(client, /event\.origin !== window\.location\.origin/)
+  assert.match(client, /slice\(0, 8000\)/)
+  assert.match(client, /frameRef/, 'iframe 要有 ref 才能比对 source')
+})
+
+test('草稿只填进原生输入框，不自动发送、不落库', async () => {
+  const client = await readFile(new URL('../lib/client.js', import.meta.url), 'utf8')
+  assert.match(client, /function deliverContext\(prompt\)/)
+  assert.match(client, /rememberDraft\(\{ sessionId: id, prompt \}\)/)
+  // 发送必须由用户按回车：客户端里不出现任何"提交/发送"调用
+  assert.doesNotMatch(client, /input\.send\(|input\.submit\(|\.composer\.send\(/)
+})

@@ -257,6 +257,8 @@ function draftPage() {
   }
   return `<div class="flow-steps"><span>原始材料</span>→<span class="on">整理草稿</span>→<span>按需核对</span>→<span>病程 / 就诊准备</span></div>
   <div class="notice pink">草稿里的每一项都要你确认后才会进档案。<b>核对 ≠ 医学审核</b>；日期不会拿导入时间顶替，缺日期时会明确要你填。</div>
+  <div class="form-actions" style="margin:-4px 0 12px">${btn('与 AI 讨论已核对的事实', 'discuss-agent', 'soft', 'data-scope="draft"')}
+    <span class="small-note" style="margin:0;max-width:38ch">只带已接受的事实；<b>未核对的候选不进上下文</b>，免得把没确认的数字当依据。</span></div>
   ${docs.map((entry) => draftDocumentCard(entry)).join('')}`
 }
 
@@ -532,7 +534,8 @@ export function timelinePage() {
   const cardNote = graded.length
     ? `按类别分组 · ${graded.length} 项带 CTCAE v${d().metrics?.ctcae?.version ?? ''} 分级对照（对照不是诊断）`
     : '按类别分组 · 点一张卡，原地翻转看最近几次'
-  return head('病情一图秀', SUBTITLES.timeline, btn('准备讨论的问题', 'add-question', 'primary')) +
+  return head('病情一图秀', SUBTITLES.timeline,
+    btn('与 AI 讨论这组数据', 'discuss-agent', 'soft', 'data-scope="timeline"') + btn('准备讨论的问题', 'add-question', 'primary')) +
   `<div class="overview">${rail()}<div class="timeline-main">${chartPanel()}
      <section class="card"><div class="card-head"><div><h3>症状轨道</h3><p>与曲线同处一段时间，但不与数值混在一起。</p></div>${pill('0–3 自评', 'grey')}</div>${symptomTrack(d().symptoms?.list ?? [])}</section>
    </div></div>

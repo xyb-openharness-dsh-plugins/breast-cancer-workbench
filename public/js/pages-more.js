@@ -209,7 +209,7 @@ export function carePage() {
     长期生活: careLongTerm,
   }
   const headAction = sub === '就诊准备'
-    ? btn('导出 Markdown', 'export', 'primary')
+    ? btn('导出 Markdown', 'export', 'primary') + btn('与 AI 讨论这份准备', 'discuss-agent', 'soft', 'data-scope="prep"')
     : btn('记录一点', 'add-symptom', 'soft')
   return head('全程与康复', SUBTITLES.care, headAction) + subnav() + map[sub]()
 }

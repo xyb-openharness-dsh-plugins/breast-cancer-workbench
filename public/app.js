@@ -1,6 +1,7 @@
 /** 前端入口：路由、事件、表单与弹窗。 */
 import { S, boot, resetBoot, refresh, STAGE_HINT, SYMPTOM_CODES, ARM_STAGES } from './js/state.js'
 import { api, uploadDocument, guessKind, isTextFile } from './js/api.js'
+import { discussWithAgent } from './js/agent.js'
 import {
   $, $$, esc, fmtNum, unitText, longDate, today, toast, openModal, closeModal, downloadText,
   btn, go, pill, section, empty, head, codeBlock,
@@ -473,6 +474,13 @@ const actions = {
   go: (el) => navigate(el.dataset.page, el.dataset.sub),
   sub: (el) => { S.sub[S.page] = el.dataset.sub; rerender() },
   close: closeModal,
+
+  // 「与 Agent 讨论」：先把这一页的记录整理成草稿并预览，用户确认后才填进会话输入框。
+  // 一图秀带上当前勾选的指标（最多 4 个），其余页面由服务端按范围取。
+  'discuss-agent': (el) => discussWithAgent({
+    scope: el.dataset.scope,
+    codes: el.dataset.scope === 'timeline' ? S.sel : [],
+  }),
 
   settings: () => settingsModal('store'),
   about: () => settingsModal('about'),

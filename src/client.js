@@ -225,6 +225,7 @@
         const brokenTimer = React.useRef(null)
         const shellRef = React.useRef(null)
         const dragHostRef = React.useRef(null)
+        const frameRef = React.useRef(null)
 
         const hasConversation = Boolean(conversation)
         const canOpenSession = typeof bridge?.desktopWorkbenches?.ensureSession === 'function'
@@ -240,7 +241,7 @@
 
         // 挂载后开始消化未送达的开场白（composer 就绪一轮一次），并订阅会话变化。
         React.useEffect(() => {
-          const timer = setInterval(() => { if (flushDraft()) setNote('开场白已填入会话草稿，按回车发送') }, 500)
+          const timer = setInterval(() => { if (flushDraft()) setNote('草稿已填入会话，按回车发送') }, 500)
           const unsubscribe = bridge?.desktopWorkbenches?.subscribe?.(() => setNote(''))
           return () => { clearInterval(timer); unsubscribe?.() }
         }, [])
@@ -305,7 +306,7 @@
 
         /* ---- 打开 / 收起 AI 对话 ---- */
 
-        async function openAgent() {
+        async function openAgent(prompt = null) {
           setNote('')
           if (!canOpenSession) {
             setNote('当前 Desktop 版本不支持从面板调起会话；请从左侧会话列表新建会话')
@@ -319,10 +320,10 @@
               dir = (await res.json())?.dir || null
             } catch { /* 拿不到目录也照样调起 */ }
             const id = await bridge.desktopWorkbenches.ensureSession({ folder: dir })
-            rememberDraft({ sessionId: id, prompt: onboardingPrompt(dir) })
+            rememberDraft({ sessionId: id, prompt: prompt || onboardingPrompt(dir) })
             flushDraft()
             setPaneOpen(true)
-            setNote('会话已就绪：开场白已填入右侧草稿，按回车发送')
+            setNote('会话已就绪：草稿已填入右侧输入框，按回车发送')
           } catch (error) {
             setNote(`没能调起会话：${error?.message ?? error}`)
           } finally {
@@ -336,6 +337,43 @@
           setPaneOpen((open) => !open)
           setNote('')
         }
+
+        /* ---- 页面发来的「与 Agent 讨论」草稿：只填输入框，不发送 ---- */
+
+        async function deliverContext(prompt) {
+          const id = ownedSession()
+          if (id) {
+            rememberDraft({ sessionId: id, prompt })
+            setPaneOpen(true)
+            // flushDraft 失败说明 composer 还没就绪：草稿留在队列里，500ms 轮询会重试。
+            setNote(flushDraft()
+              ? '已把这一页的内容填入会话草稿，按回车发送'
+              : '会话输入框还没就绪；草稿已暂存，就绪后自动填入')
+            return
+          }
+          setNote('正在为你调起 AI 会话…')
+          await openAgent(prompt)
+        }
+
+        // handler 每轮都换成最新的闭包，effect 只注册一次：
+        // 直接在 effect 里闭包 deliverContext 会拿到首帧的 state（会话 ID 已经变了也不自知）。
+        const deliverRef = React.useRef(null)
+        React.useEffect(() => { deliverRef.current = deliverContext })
+        React.useEffect(() => {
+          function onMessage(event) {
+            const data = event.data
+            if (!data || typeof data !== 'object' || data.type !== 'pinky:agent-draft') return
+            const frame = frameRef.current
+            // 不认"谁都能发"的消息：必须来自我们自己的 iframe，且同源。
+            if (!frame || event.source !== frame.contentWindow) return
+            if (event.origin !== window.location.origin) return
+            const prompt = typeof data.prompt === 'string' ? data.prompt.trim() : ''
+            if (!prompt) return
+            void deliverRef.current?.(prompt.slice(0, 8000))
+          }
+          window.addEventListener('message', onMessage)
+          return () => window.removeEventListener('message', onMessage)
+        }, [])
 
         const agentLabel = !canOpenSession
           ? 'AI 对话暂不可用'
@@ -378,6 +416,7 @@
             h('div', { style: businessStyle },
               h('iframe', {
                 key: generation,
+                ref: frameRef,
                 src: UI_ENTRY,
                 title: `${TITLE} · ${SUBTITLE}`,
                 style: frameStyle,
