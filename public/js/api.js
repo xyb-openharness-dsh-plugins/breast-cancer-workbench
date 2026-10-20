@@ -23,11 +23,15 @@ async function parse(res) {
  * （由服务端在返回页面时写进 <html data-api-base>，页面自己不猜）。
  * 从 data 属性读而不是内联脚本：本站 CSP 禁内联脚本，内联 boot 会被静默拦掉
  * （实测踩过：基址变 undefined，接口全部 404，顶栏还写着"未接入 DSH 宿主"）。
- * 拿不到就退回 `/api`：宁可退回独立启动的形状，也不要拼出一个不存在的路径。
+ * 空串是独立启动的**合法**基址（接口路径自带 `/api`），必须原样接受——
+ * 曾经只认以 `/` 开头的值，空串被退回成 `/api`，拼出 `/api/api/state`，开发版界面全 404。
+ * 只有"拿不到"或模板没替换（还带着 `{{`）时才退回 `/api`。
  */
 export function apiBase() {
   const base = typeof document === 'undefined' ? '' : document.documentElement?.dataset?.apiBase
-  if (typeof base === 'string' && base.startsWith('/') && !base.includes('{')) return base.replace(/\/+$/, '')
+  if (typeof base === 'string' && !base.includes('{') && (base === '' || base.startsWith('/'))) {
+    return base.replace(/\/+$/, '')
+  }
   return '/api'
 }
 

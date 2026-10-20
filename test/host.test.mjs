@@ -225,12 +225,25 @@ test('宿主前缀下的未知接口返回 404 JSON，不是 HTML 也不是 500'
   assert.equal(out.json.error.code, 'NOT_FOUND')
 })
 
-test('独立启动时占位替换成 /api 与 standalone，行为与 M2 一致', async () => {
+test('独立启动：接口基址是空串（接口路径自带 /api），runtime 是 standalone', async () => {
+  // 曾经这里断言 data-api-base="/api"，结果前端 `${base}/api/state` 拼成 /api/api/state，
+  // 开发版页面全 404（2026-10-20 实测发现）。契约：基址**不含** /api。
   const server = new WorkbenchServer({ version: '1.2.3' })
   const page = await call(server, { url: '/' })
   assert.equal(page.status, 200)
-  assert.match(page.body, /data-api-base="\/api"/)
+  assert.match(page.body, /data-api-base=""/)
+  assert.doesNotMatch(page.body, /data-api-base="\/api"/)
   assert.match(page.body, /data-runtime="standalone"/)
+})
+
+test('回归：基址拼上 /api/state 在独立启动下真的能打到接口（不是 /api/api/state）', async () => {
+  const server = new WorkbenchServer({ version: '1.2.3' })
+  const page = await call(server, { url: '/' })
+  const base = /data-api-base="([^"]*)"/.exec(page.body)?.[1] ?? null
+  assert.equal(base, '', '基址必须是空串')
+  const out = await call(server, { url: `${base}/api/state` })
+  assert.notEqual(out.status, 404, `实际请求了 ${base}/api/state`)
+  assert.equal(out.status, 200)
 })
 
 test('目录浏览接口：默认列家目录，只含子目录、不带隐藏项，可向上一级', async () => {

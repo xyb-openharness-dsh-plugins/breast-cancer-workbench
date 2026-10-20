@@ -272,18 +272,28 @@ export function gradeBadge(grade, ctcaeVersion = '', extraClass = '') {
   return `<span class="grade-chip${grade >= 3 ? ' high' : ''}${extraClass ? ` ${extraClass}` : ''}">对照 CTCAE ${v}${grade} 级</span>`
 }
 
-/** 分级区间与免责一行（卡片背面 / 列表里用）。 */
-export function gradeLine(ctcae, ctcaeVersion = '') {
-  if (!ctcae?.grade) return ''
-  const v = ctcaeVersion ? `v${esc(ctcaeVersion)}` : 'CTCAE'
-  return `<span class="grade-line">${esc(v)} ${ctcae.grade} 级${ctcae.band ? ` · ${esc(ctcae.band)}` : ''}${ctcae.approx ? ' · 按通用下限近似' : ''} · 对照不是诊断</span>`
+/**
+ * 分级区间与免责一行（卡片背面 / 列表里用）。
+ * `extra` 用来把"方法变更断线"之类的既有提示并进同一段——卡片背面高度是固定的
+ * （194px），多占一段就会把页脚挤出可视区（实测踩过）。
+ */
+export function gradeLine(ctcae, ctcaeVersion = '', extra = '') {
+  const parts = []
+  if (ctcae?.grade) {
+    const v = ctcaeVersion ? `CTCAE v${esc(ctcaeVersion)}` : 'CTCAE'
+    parts.push(`${v} ${ctcae.grade} 级${ctcae.band ? ` · ${esc(ctcae.band)}` : ''}${ctcae.approx ? ' · 按通用下限' : ''} · 对照不是诊断`)
+  }
+  if (extra) parts.push(esc(extra))
+  return parts.length ? `<span class="grade-line">${parts.join(' · ')}</span>` : ''
 }
 
 export function metricCard(card, flipped, ctcaeVersion = '') {
   const color = card.color
   const latest = card.latest
   const badge = card.ctcae?.grade ? gradeBadge(card.ctcae.grade, ctcaeVersion) : ''
-  const backGrade = card.ctcae?.grade ? gradeLine(card.ctcae, ctcaeVersion) : ''
+  const backGrade = card.ctcae?.grade || card.breakCount
+    ? gradeLine(card.ctcae, ctcaeVersion, card.breakCount ? `${card.breakCount} 处方法变更断线` : '')
+    : ''
   if (!latest) {
     return `<button class="mcard" data-action="flip" data-code="${card.code}" aria-pressed="false" aria-label="${esc(card.name)}，还没有记录">
       <span class="mcard-inner">
@@ -307,7 +317,6 @@ export function metricCard(card, flipped, ctcaeVersion = '') {
        ${sparkline(recent, color, card.dec)}
        <span class="spark-labels"><span>${longDate(recent[0].date)}</span><span>${longDate(recent.at(-1).date)}</span></span>
        ${backGrade}
-       ${card.breakCount ? `<span class="small-note" style="margin-top:2px">有 ${card.breakCount} 处方法变更，线在那里断开</span>` : ''}
        <span class="foot">仅回顾已记录的值 · 点击返回</span>`
     : `<span class="cat"><i style="background:${color}"></i>${esc(card.categoryLabel)}</span>
        <span class="name">${esc(card.name)}</span>
