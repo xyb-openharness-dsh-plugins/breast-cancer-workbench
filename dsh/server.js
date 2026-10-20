@@ -176,7 +176,8 @@ export class WorkbenchServer {
    * @param {string} [opts.publicDir]
    * @param {string} [opts.version]
    * @param {string} [opts.basePath] 宿主给的前缀；独立启动时为空串
-   * @param {string} [opts.apiBase] 注入页面的接口基址；默认 `/api`（宿主下是前缀本身）
+   * @param {string} [opts.apiBase] 注入页面的接口基址；**不含 `/api`**（接口路径自带 `/api`）。
+   *   独立启动是空串，挂在宿主下是宿主前缀本身（如 `/api/breast-cancer-workbench`）。
    * @param {string} [opts.runtime] `standalone` | `host`，只影响页面顶部那一行提示
    * @param {((dir: string) => void)|null} [opts.onWorkspace] 用户选定资料目录后回调（宿主用来记住位置）
    */
@@ -193,7 +194,10 @@ export class WorkbenchServer {
     this.publicDir = resolve(publicDir)
     this.version = version
     this.basePath = basePath
-    this.apiBase = apiBase || (basePath || '/api')
+    // 前端调用形如 `${apiBase}/api/xxx`，所以基址里不能再含 /api：
+    // 独立启动是空串（请求 /api/xxx），宿主下是前缀（请求 /api/breast-cancer-workbench/api/xxx）。
+    // 这里原先在 basePath 为空时兜底成 '/api'，结果拼出 /api/api/state —— 开发版界面开不起来。
+    this.apiBase = apiBase || basePath
     this.runtime = runtime === 'host' ? 'host' : 'standalone'
     this.onWorkspace = typeof onWorkspace === 'function' ? onWorkspace : null
   }
@@ -281,10 +285,11 @@ export class WorkbenchServer {
       // 1. 单一来源：只在 assets/reference/ctcae/ 放一份，不在 public/ 复制；
       // 2. 不能变成任意文件读：文件名取自冻结的 CTCAE_META，且必须仍在该目录内；
       // 3. 缺失时不假装有：明确报 NOT_FOUND，让界面去指 NCI 发布页。
-      const rel = CTCAE_META.localPdf
-      const dir = resolve(REPO_ROOT, dirname(rel))
-      const full = resolve(REPO_ROOT, rel)
-      if (full !== dir && !full.startsWith(`${dir}${sep}`)) {
+      // 目录写死成 assets/reference/ctcae（不用 dirname(配置)）：即使有人把 localPdf
+      // 改成别处的路径，也只能在这个目录里取，不会变成任意文件读。
+      const dir = resolve(REPO_ROOT, 'assets/reference/ctcae')
+      const full = resolve(REPO_ROOT, CTCAE_META.localPdf)
+      if (!full.startsWith(`${dir}${sep}`)) {
         throw new AppError('UNSAFE_PATH', '引用文件路径不合法', 400)
       }
       let body = null

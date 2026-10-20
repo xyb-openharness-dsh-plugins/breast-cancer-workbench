@@ -409,7 +409,7 @@ function ctcaeReference() {
         用了成人通用正常下限的地方会标"按通用下限近似"——以你化验单上的参考范围为准。</p></div>
     </div>
     ${covered.length ? `<p class="small-note" style="margin-top:6px">当前档案里有 ${covered.length} 项落在对照区间内：${esc(covered.map((c) => `${c.name}（${c.ctcae.grade} 级）`).join('、'))}。</p>` : '<p class="small-note" style="margin-top:6px">当前档案里还没有指标落到对照区间内。</p>'}
-    <div class="actions" style="margin-top:8px"><a class="source-link" href="${esc(apiBase())}/reference/ctcae" target="_blank" rel="noreferrer">标准原文 PDF ↗</a><a class="source-link" href="${esc(meta.sourceUrl)}" target="_blank" rel="noreferrer">NCI 发布页 ↗</a></div>
+    <div class="actions" style="margin-top:8px"><a class="source-link" href="${esc(apiBase())}/api/reference/ctcae" target="_blank" rel="noreferrer">标准原文 PDF ↗</a><a class="source-link" href="${esc(meta.sourceUrl)}" target="_blank" rel="noreferrer">NCI 发布页 ↗</a></div>
   </div>`
 }
 
