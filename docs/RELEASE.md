@@ -1,6 +1,6 @@
 # 接入与发布 v0.1
 
-日期：2026-10-17。状态：**未接入、未发布**。本文是 G3 通过后照做的执行手册，同时把当前的阻塞项写清楚；不把"计划"写成"已完成"。
+日期：2026-10-17，2026-10-22 按实测改写 §0 与身份表。状态：**已接入（实机停在 0.6.1，待重装到 0.12.0）、未打 tag、未发布**。本文是 G3 通过后照做的执行手册，同时把当前的阻塞项写清楚；不把"计划"写成"已完成"。
 
 官方依据（本机已有原文，不依赖网页）：
 
@@ -17,15 +17,21 @@
 
 ---
 
-## 0. 现在能不能发：不能，三条硬事实
+## 0. 现在能不能发：能发，但先重装复验
 
-| 事实 | 证据 | 结论 |
+本节 2026-10-22 按实测改写。原文写于 10-17（当时确实"不是 Git 仓库、没有包"），三条结论已全部过期。
+
+| 事实 | 实测（2026-10-22） | 结论 |
 | --- | --- | --- |
-| 不是 Git 仓库 | `git status` → `fatal: not a git repository` | P1 未开始 |
-| 没有可安装的包 | 无 `package.json`、`dsh/`、`lib/`、`cordis.patch.yml` | 无包可 pack，V1 无法执行 |
-| 闸口未过完 | G2 待逐页签认、G3 草案待审（[SPEC §0](SPEC.md)） | 官方要求"真实可用代码"，占位不收 |
+| Git 仓库 | `origin` = `xyb-openharness-dsh-plugins/breast-cancer-workbench`，`main` 已推到 `993f6c8` | P1 **已完成** |
+| 可安装的包 | `npm pack` → 59 files / 3.4 MB，不含 `guidebooks/`；49 项包合同通过 | V1 可执行 |
+| DSH 实机 | web profile 已装 `@pinkypal-dsh/breast-cancer-workbench@0.6.1`（本地 tgz） | **落后 6 个版本**，须重装复验 |
+| 版本 tag | `git tag` 为空 | 未打 `v0.12.0` |
+| 市场投稿 | 未投稿 | P2 **未开始** |
 
-所以当前**只能做发布预演**：确认本机能力、把命令与判据定死、把阻塞项列给你。任何"已接入 / 已安装 / 已上架"的说法都不成立。
+所以收尾的判据是三件事，不是"能不能发"：① 用当前 `0.12.0` 的 tgz 重装，把 V1/V2/V3 重跑一遍（容器内能看到 `v0.12.0`、业务页能开、数据落在所选目录）；② 打 `v0.12.0` tag；③ 市场投稿。
+
+**已知的一个坑**：profile 里的依赖指向 `file:/…/pinkypal-dsh-breast-cancer-workbench-0.6.1.tgz`（0.5.0–0.6.1 六个 tgz 还留在仓库根，`*.tgz` 已被 `.gitignore` 忽略）。重装要重新 `npm pack` 再 `pnpm add -w <新 tgz>`；specifier 是绝对路径，目录一挪或文件一删，`pnpm` 会因找不到 tarball 直接失败。
 
 ### 本机能力已探测（可直接复用，不必再猜）
 
@@ -52,9 +58,9 @@
 
 | 标识 | 写在哪 | 本项目的取值 | 状态 |
 | --- | --- | --- | --- |
-| npm 包名 | `package.json` `name` | 建议 `@xyb-community/breast-cancer-workbench`（沿用社区 scope） | **待你定** |
+| npm 包名 | `package.json` `name` | `@pinkypal-dsh/breast-cancer-workbench` | **已定**（与 `lib/identity.js` 同源） |
 | 插件条目 id | `cordis.patch.yml` 的 `insert[].id` | `breast-cancer-workbench` | 建议值 |
-| 工作台身份 | `package.json` `repository` → 市场派生 `owner/repo` | 远端仓库尚未创建 | **待你定，不编造** |
+| 工作台身份 | `package.json` `repository` → 市场派生 `owner/repo` | `xyb-openharness-dsh-plugins/breast-cancer-workbench` | **已定**（私仓） |
 
 `register()` **不填 `id`**：新版桌面由 `repository` 派生身份，descriptor 自带 ID 会被拒绝（`workbenches.md`）。旧 `workbenchId` 只用于老条目迁移，新投稿不填。
 

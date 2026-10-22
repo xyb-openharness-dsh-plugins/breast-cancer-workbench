@@ -24,7 +24,7 @@
 1. **HTML 原型 v0.3.0**：[`prototypes/v0.3/index.html`](prototypes/v0.3/index.html) —— 本机浏览器打开，无依赖，全部模拟，刷新重置。顶栏与页脚显示版本号，点 `v0.3.0` 可看「关于」。
 2. **规格**：[SPEC v0.8](docs/SPEC.md)（范围、闸口、产品立场、验收、发布约束）；G2 判定依据见 [DEMO-CHECKLIST](docs/DEMO-CHECKLIST.md)。
 3. **数据**：[SCHEMA-SPEC](docs/SCHEMA-SPEC.md)（表/字段/约束/索引）、[DATA-FLOW-SPEC](docs/DATA-FLOW-SPEC.md)（写入/派生/更正/导出）。
-4. **领域**：[BREAST-DOMAIN](docs/BREAST-DOMAIN.md)（乳腺癌维度与 16 项指标字典）、[SCENARIOS](docs/SCENARIOS.md)（S1–S10）。
+4. **领域**：[BREAST-DOMAIN](docs/BREAST-DOMAIN.md)（乳腺癌维度与 22 项指标字典：含 5 项 ×ULN 与 QTc）、[SCENARIOS](docs/SCENARIOS.md)（S1–S10）。
 5. **发布**：[RELEASE](docs/RELEASE.md)（接入、三层版本验证、Git 与市场发布、回滚；含本机实测的 Desktop 0.12.0 安装入口与两个 profile 的坑）。当前**未接入、未发布**。
 6. **规范**：[VERSIONING](docs/VERSIONING.md)（版本号单一来源 `VERSION`、页面三处显示、校验命令）。
 7. **开发**：[DEV-PLAN](docs/DEV-PLAN.md)（M0–M6 里程碑；M0/M1 已完成，M2 第一段与 MinerU 解析已落地）。
