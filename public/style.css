@@ -116,6 +116,12 @@ small{font-size:12px;color:var(--muted)}
 .notice.plain{background:#fbfaf6;border-color:#eee8dc;color:#6d6350}
 .help-box{background:#fbf9f6;border:1px dashed #e4d8c9;border-radius:12px;padding:12px 15px;font-size:12px;color:#6f6354;line-height:1.7;margin-top:16px}
 .small-note{font-size:11.5px;color:var(--muted);line-height:1.65;margin-top:10px}
+/* 解析失败的「技术信息」：默认折叠，不占视觉，但要能展开对照原文 */
+.fault-detail{margin-top:10px;font-size:11.5px;color:var(--muted)}
+.fault-detail summary{cursor:pointer;color:var(--ink-2);font-size:11.5px}
+.fault-detail code{display:block;margin-top:6px;padding:8px 10px;border-radius:8px;background:#fbf9f6;border:1px solid #eee8dc;color:#6f6354;font-size:11px;line-height:1.6;word-break:break-all}
+.gl-note-list{margin:8px 0 0;padding-left:16px;display:grid;gap:6px;line-height:1.65}
+.gl-note-list b{color:var(--ink-2)}
 .empty{border:1px dashed var(--line-strong);border-radius:14px;padding:24px 18px;text-align:center;background:#fffdfd;margin-top:14px}
 .empty h3{font-size:14px;margin-bottom:5px}
 .empty p{font-size:12px}
@@ -229,7 +235,8 @@ small{font-size:12px;color:var(--muted)}
 .mface.back .count{font-size:11px;color:var(--muted);margin-top:1px}
 .spark{width:100%;height:62px;display:block;margin:6px 0 2px;overflow:visible}
 /* 背面还要放 CTCAE 区间与免责，卡片高度固定 194px：把迷你折线压一点，页脚才不会被裁 */
-.mface.back .spark{height:50px;margin:4px 0 0}
+/* 卡片背面 194px 固定高：加了「指南口径」一行后，迷你折线从 50 缩到 42 才不会把页脚挤出去（实测 scrollHeight） */
+.mface.back .spark{height:42px;margin:2px 0 0}
 .spark .base{stroke:#e9dde2;stroke-width:1}
 .spark .sp-line{fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:1;stroke-dashoffset:1;animation:draw .8s ease forwards}
 .spark .sp-dot{stroke:#fff;stroke-width:1.6;animation:pop .3s ease both}
@@ -541,7 +548,35 @@ dialog::backdrop{background:rgba(51,42,48,.35);backdrop-filter:blur(2px)}
 .grade-chip{display:inline-block;font-size:9.5px;line-height:1.5;letter-spacing:.2px;font-weight:600;
   padding:2px 7px;border-radius:999px;border:1px solid var(--line);background:#f7f4f5;color:#6b5a62;white-space:nowrap}
 .grade-chip.high{border-color:#f0dcb8;background:#fffaf0;color:#7d5a17}
+/* 缺参考上限：虚线中性徽章，不做好坏配色（"没给级"不等于"没问题"） */
+.grade-chip.need{border-style:dashed;background:#fbfafb;color:#8a7c83;font-weight:500}
 .grade-line{display:block;font-size:9.5px;line-height:1.55;color:#8b7a82;margin-top:4px}
+/* 指南口径一行：与 .grade-line 并列，恒一行、超长省略（卡片背面 194px 固定高，多一行会挤页脚） */
+.gl-line{display:block;font-size:9px;line-height:1.35;color:#7b6a73;margin-top:0;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.gl-line::before{content:"◇ ";color:#c2a9b4}
+.gl-ref{border-top:1px dashed var(--line);margin-top:10px;padding-top:8px}
+.gl-ref .gl-doc{font-size:11px;color:var(--muted)}
+.gl-ref table{width:100%;border-collapse:collapse;margin-top:6px;font-size:11.5px}
+.gl-ref th,.gl-ref td{text-align:left;padding:4px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+.gl-ref th{font-weight:600;color:var(--ink-2);white-space:nowrap}
+.gl-ref td.pg{white-space:nowrap;color:var(--muted);font-variant-numeric:tabular-nums}
+.gl-ref .q{color:var(--ink-2)}
+.gl-ref .kind{white-space:nowrap;color:var(--muted)}
+
+/* 随访节奏（G2）：四行式，行距紧，避免又变成一张"计划表" */
+.fu-card .fu-lines{display:grid;gap:3px;margin:8px 0 2px}
+.fu-card .fu-lines > div{display:flex;gap:10px;align-items:baseline;font-size:12.5px;line-height:1.6}
+.fu-card .fu-lines dt{flex:0 0 92px;color:var(--muted);font-size:11.5px}
+.fu-card .fu-lines dd{margin:0;color:var(--ink-1);font-variant-numeric:tabular-nums}
+.fu-card .fu-flag{margin-left:8px;font-size:10.5px;padding:1px 6px;border-radius:9px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.fu-card .fu-flag.near{border-color:#e9cfa5;background:#fff8ec;color:#8a5f1c}
+.fu-card .fu-flag.past{border-color:#e6d3d8;background:#fdf5f6;color:#8b5b68}
+.fu-card .fu-relax{margin-top:8px}
+.fu-card .fu-hit{color:var(--ink-2)}
+.fu-card .fu-checks{margin-top:8px}
+.fu-card .fu-checks table{margin-top:6px}
+.fu-card .fu-checks th,.fu-card .fu-checks td{font-size:11.5px;padding:4px 6px}
 
 /* 化疗后常见反应 · 骨髓抑制：感受与指标两列并置，不写因果 */
 .alert-strip.marrow{align-items:flex-start}

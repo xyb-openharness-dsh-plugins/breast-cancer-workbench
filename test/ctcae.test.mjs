@@ -11,6 +11,7 @@ import assert from 'node:assert/strict'
 import { readFileSync, existsSync } from 'node:fs'
 import {
   CTCAE_META, CTCAE_GRADE_LABELS, ctcaeGrade, ctcaeCoveredCodes, ctcaeInfo,
+  ctcaeAllCodes, ctcaeUlnCodes,
 } from '../dsh/ctcae.js'
 import { marrowSuppression } from '../dsh/readmodels.js'
 
@@ -24,8 +25,14 @@ test('元信息：版本 5.0、发布日期与本地 PDF 位置', () => {
 
 test('只覆盖血液学四项；其他指标（含标志物）一律 null', () => {
   assert.deepEqual(ctcaeCoveredCodes().sort(), ['anc', 'hgb', 'plt', 'wbc'])
-  for (const code of ['ca153', 'cea', 'alt', 'cr', 'weight', 'arm_diff', 'lvef', 'drain_vol']) {
+  for (const code of ['ca153', 'cea', 'weight', 'arm_diff', 'lvef', 'drain_vol']) {
     assert.equal(ctcaeGrade(code, 123), null, `${code} 不该有对照`)
+  }
+  // ALT/肌酐是 ×ULN 型：没有参考上限时返回 needsUln，而不是 null——"缺数据"和"没定义"不是一回事
+  for (const code of ['alt', 'ast', 'alp', 'tbil', 'cr']) {
+    const r = ctcaeGrade(code, 123)
+    assert.equal(r?.needsUln, true, `${code} 缺 ULN 时应标 needsUln`)
+    assert.equal(r.grade, null)
   }
 })
 
@@ -105,8 +112,7 @@ test('读模型透传：metricCards 的 ctcae 字段只出现在有定义且有�
   }
 })
 
-test('分级标签齐备', () => {
-  assert.deepEqual(Object.keys(CTCAE_GRADE_LABELS).sort(), ['1', '2', '3', '4'])
+test('分级标签齐备', () => {  assert.deepEqual(Object.keys(CTCAE_GRADE_LABELS).sort(), ['1', '2', '3', '4'])
   assert.equal(ctcaeInfo().version, CTCAE_META.version)
 })
 
@@ -182,4 +188,122 @@ test('看板 overview 透传 marrow 字段', async () => {
   assert.equal(r.marrow.paired, true)
   assert.equal(r.marrow.labs[0].code, 'hgb')
   assert.equal(r.marrow.labs[0].grade, 2)
+})
+
+/* ---------- G3（2026-10-22）：×ULN 型与绝对阈值型 ---------- */
+
+test('ALT：没有参考上限只标 needsUln，绝不拿通用值凑倍数', () => {
+  const r = ctcaeGrade('alt', 96)
+  assert.equal(r.grade, null)
+  assert.equal(r.needsUln, true)
+  assert.equal(r.ratio, undefined)
+  assert.match(r.note, /参考上限/)
+})
+
+test('ALT：>ULN–3.0 / >3.0–5.0 / >5.0–20.0 / >20.0 四个边界逐个钉住', () => {
+  const uln = 40
+  assert.equal(ctcaeGrade('alt', 40, { uln }).grade, null, '正好等于上限不给级')
+  assert.equal(ctcaeGrade('alt', 40.1, { uln }).grade, 1)
+  assert.equal(ctcaeGrade('alt', 120, { uln }).grade, 1, '3.0×ULN 仍算 1 级（原文是 >ULN–3.0）')
+  assert.equal(ctcaeGrade('alt', 120.1, { uln }).grade, 2)
+  assert.equal(ctcaeGrade('alt', 200, { uln }).grade, 2)
+  assert.equal(ctcaeGrade('alt', 200.1, { uln }).grade, 3)
+  assert.equal(ctcaeGrade('alt', 800, { uln }).grade, 3)
+  assert.equal(ctcaeGrade('alt', 800.1, { uln }).grade, 4)
+  assert.equal(ctcaeGrade('alt', 120.1, { uln }).band, '>3.0–5.0 ×ULN')
+  assert.equal(ctcaeGrade('alt', 120.1, { uln }).ratio, 120.1 / 40)
+})
+
+test('AST 与 ALT 同阈值；碱性磷酸酶是 2.5 / 5.0 / 20.0', () => {
+  assert.equal(ctcaeGrade('ast', 120, { uln: 40 }).grade, 1)
+  assert.equal(ctcaeGrade('ast', 121, { uln: 40 }).grade, 2)
+  assert.equal(ctcaeGrade('alp', 100, { uln: 40 }).grade, 1)
+  assert.equal(ctcaeGrade('alp', 100.1, { uln: 40 }).grade, 2)
+  assert.equal(ctcaeGrade('alp', 200, { uln: 40 }).grade, 2)
+  assert.equal(ctcaeGrade('alp', 200.1, { uln: 40 }).grade, 3)
+  assert.equal(ctcaeGrade('alp', 800, { uln: 40 }).grade, 3)
+  assert.equal(ctcaeGrade('alp', 800.1, { uln: 40 }).grade, 4)
+})
+
+test('总胆红素 1.5 / 3.0 / 10.0，肌酐 1.5 / 3.0 / 6.0', () => {
+  assert.equal(ctcaeGrade('tbil', 15, { uln: 10 }).grade, 1)
+  assert.equal(ctcaeGrade('tbil', 30, { uln: 10 }).grade, 2)
+  assert.equal(ctcaeGrade('tbil', 100, { uln: 10 }).grade, 3)
+  assert.equal(ctcaeGrade('tbil', 100.1, { uln: 10 }).grade, 4)
+  assert.equal(ctcaeGrade('cr', 90, { uln: 60 }).grade, 1)
+  assert.equal(ctcaeGrade('cr', 180, { uln: 60 }).grade, 2)
+  assert.equal(ctcaeGrade('cr', 360, { uln: 60 }).grade, 3)
+  assert.equal(ctcaeGrade('cr', 360.1, { uln: 60 }).grade, 4)
+})
+
+test('QTc：450 / 481 / 501 三个起点，最高只到 3 级', () => {
+  assert.equal(ctcaeGrade('qtc', 449).grade, null)
+  assert.equal(ctcaeGrade('qtc', 450).grade, 1)
+  assert.equal(ctcaeGrade('qtc', 480).grade, 1)
+  assert.equal(ctcaeGrade('qtc', 481).grade, 2)
+  assert.equal(ctcaeGrade('qtc', 500).grade, 2)
+  assert.equal(ctcaeGrade('qtc', 501).grade, 3)
+  assert.equal(ctcaeGrade('qtc', 640).grade, 3, 'G4 是心律失常事件，本地没有这份记录，不拿数值硬凑')
+  assert.equal(ctcaeGrade('qtc', 501).band, '≥501 ms')
+})
+
+test('QTc：把秒填进 ms 栏时标单位待核对，不替用户换算', () => {
+  const r = ctcaeGrade('qtc', 0.46)
+  assert.equal(r.grade, null)
+  assert.equal(r.needsUnit, true)
+})
+
+test('骨髓抑制的指标面不含 ALT/QTc（否则那组会多出无关指标）', () => {
+  assert.deepEqual(ctcaeCoveredCodes().sort(), ['anc', 'hgb', 'plt', 'wbc'])
+  assert.ok(ctcaeAllCodes().includes('alt'))
+  assert.ok(ctcaeAllCodes().includes('qtc'))
+  assert.deepEqual(ctcaeUlnCodes().sort(), ['alp', 'alt', 'ast', 'cr', 'tbil'])
+})
+
+test('读模型透传参考上限：有 ULN 才给级，没 ULN 只标 needsUln', async () => {
+  const { Workbench } = await import('../dsh/workbench.js')
+  const { mkdtemp, rm } = await import('node:fs/promises')
+  const { join } = await import('node:path')
+  const { homedir } = await import('node:os')
+  const root = await mkdtemp(join(homedir(), '.xyb-uln-'))
+  try {
+    const { workbench } = await Workbench.openWorkspace({ dir: join(root, '资料'), create: true, subjectName: '测试' })
+    // 同一指标两次：一次带参考上限，一次不带
+    workbench.addObservation({ metricCode: 'alt', occurredOn: '2026-09-01', value: 96 })
+    workbench.addObservation({ metricCode: 'alt', occurredOn: '2026-10-01', value: 96, refHigh: 40 })
+    workbench.addObservation({ metricCode: 'qtc', occurredOn: '2026-10-01', value: 488 })
+    const cards = workbench.metrics().cards
+    const alt = cards.find((c) => c.code === 'alt')
+    // 96/40 = 2.4×ULN —— CTCAE 的 1 级是「>1.0–3.0×ULN」，所以这里只到 1 级
+    assert.equal(alt.ctcae.grade, 1)
+    assert.equal(alt.ctcae.ratio, 2.4)
+    assert.equal(alt.ctcae.uln, 40)
+    assert.equal(alt.ctcae.band, '>1.0–3.0 ×ULN')
+    assert.ok(alt.latest.refHigh === 40, '参考上限要跟点一起透传')
+
+    const qtc = cards.find((c) => c.code === 'qtc')
+    assert.equal(qtc.ctcae.grade, 2)
+    workbench.store.close()
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('读模型：同一档案里没带 ULN 的那次不会被后来的 ULN 追认', async () => {
+  const { Workbench } = await import('../dsh/workbench.js')
+  const { mkdtemp, rm } = await import('node:fs/promises')
+  const { join } = await import('node:path')
+  const { homedir } = await import('node:os')
+  const root = await mkdtemp(join(homedir(), '.xyb-uln2-'))
+  try {
+    const { workbench } = await Workbench.openWorkspace({ dir: join(root, '资料'), create: true, subjectName: '测试' })
+    workbench.addObservation({ metricCode: 'ast', occurredOn: '2026-10-01', value: 121 })
+    const ast = workbench.metrics().cards.find((c) => c.code === 'ast')
+    assert.equal(ast.ctcae.grade, null)
+    assert.equal(ast.ctcae.needsUln, true)
+    assert.equal(ast.ctcae.ratio, null)
+    workbench.store.close()
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
 })

@@ -4,6 +4,9 @@
 > 本文只写**这一仓怎么落地**：文件位置、阈值、状态机与验收。改行为前先读原则，别只改代码。
 
 引入版本：v0.7.0（2026-10-20，用户定则：指标卡要分组；化疗后并发症如骨髓抑制，表达上是头晕无力、指标上是中性粒细胞低，用 CTCAE 分级对照）。
+v0.10.0（2026-10-22）新增**指南出处层（G1）**：分级主口径仍是 CTCAE v5.0，指南口径只在卡片背面并列一行、**不取严**；出处数据在 `assets/reference/guideline/refs.json`，实现见 `dsh/guideline.js`，方案见 [GUIDELINE-BRIDGE](GUIDELINE-BRIDGE.md)。
+v0.11.0（2026-10-22）新增**随访节奏层（G2）**：只算参考节点（指南间隔 + 手术日），**不碰分级**——它不出任何级别、不判轻重，因此本文的分级口径未变；数据在 `assets/reference/guideline/cadence.json`，实现见 `dsh/cadence.js`。
+v0.12.0（2026-10-22）**分级扩项（G3）**：新增 ×ULN 五项与 QTc 绝对值型（见 §2.1）。字典 18 → 22 项；`addObservation` 开始接受并校验 `ref_low` / `ref_high`。分级主口径仍是 CTCAE v5.0。
 
 ---
 
@@ -17,7 +20,9 @@
 | `dsh/workbench.js` | `metrics().ctcae` 透传元信息；`overview().marrow` 给看板 | 不复制阈值 |
 | `dsh/server.js` | `GET /api/reference/ctcae` 只读原文 | 不暴露任意文件 |
 | `public/js/ui.js` | `gradeBadge()` / `gradeLine()` / 卡片正面徽章与背面区间 | 不硬编码版本与阈值 |
-| `public/js/pages-basic.js` | `metricGroupsHTML()` 分组、`ctcaeReference()` 对照块、`marrowStrip` 看板提醒 | 不自己判"该不该提醒" |
+| `public/js/pages-basic.js` | `metricGroupsHTML()` 分组、`ctcaeReference()` 对照块、`guidelineReference()` 出处块、`marrowStrip` 看板提醒 | 不自己判"该不该提醒" |
+| `assets/reference/guideline/refs.json` | 指南页码、表号、≤200 字摘录、未对照项的原因 | 不放正文；不放处置条文 |
+| `dsh/guideline.js` | `guidelineRef()` / `cbcsView()` / `refLabel()` 纯函数 | 不覆盖 CTCAE 的级、不取严、不判断 |
 
 ---
 
@@ -34,6 +39,23 @@
 - `hgb` 的 `maxGrade: 3`：标准里 G4 是"危及生命，需紧急处理"，没有数值门槛，本地不给 G4。
 - 通用下限（`llfn`）是成人近似值，结果恒带 `approx: true`，界面写"按通用下限"。
 - `ctcaeCoveredCodes()` 返回 `['anc','hgb','plt','wbc']`；其他指标（含 CA15-3 / CEA）恒 `null`——**标志物不是不良事件，不做分级**。
+
+### 2.1 ×ULN 型与绝对阈值型（v0.12.0 起）
+
+| 指标 | 术语 | 单位 | G1 | G2 | G3 |
+|---|---|---|---|---|---|
+| `alt` 丙氨酸氨基转移酶 | 丙氨酸氨基转移酶升高 | U/L | >1.0–3.0 | >3.0–5.0 | >5.0–20.0 |
+| `ast` 天冬氨酸氨基转移酶 | 天冬氨酸氨基转移酶升高 | U/L | >1.0–3.0 | >3.0–5.0 | >5.0–20.0 |
+| `alp` 碱性磷酸酶 | 碱性磷酸酶升高 | U/L | >1.0–2.5 | >2.5–5.0 | >5.0–20.0 |
+| `tbil` 总胆红素 | 总胆红素升高 | μmol/L | >1.0–1.5 | >1.5–3.0 | >3.0–10.0 |
+| `cr` 肌酐 | 肌酐升高 | μmol/L | >1.0–1.5 | >1.5–3.0 | >3.0–6.0 |
+| `qtc` 校正后 QT 间期 | QT 间期延长 | ms | 450–480 | 481–500 | ≥501 |
+
+- 上表五项的边界是 **×ULN**，不是绝对值（QTc 那行是绝对值）。页码：ALT/AST/ALP P84，TBIL P85，Cr P86，QTc P87。
+- **必须用这张化验单自己的参考上限**（`ref_high`）。没有就返回 `needsUln`，卡面给虚线徽章「需参考上限」，**绝不用成人通用上限凑倍数**——ALT 的 ULN 各实验室 40–55 U/L，差 1.4 倍，一除就能把 2 级说成 1 级。这与"降低"类用通用下限近似（带 `approx: true`）是两套处理，别混。
+- 倍数 `≤1` 记 0 级（`ctcaeGrade` 返回 `{ grade: 0 }`），读模型再过滤成 `null`，卡面不显示"0 级"。
+- `qtc` 的 `maxGrade: 3`：原文 G3 另有"较基线增加 >60ms"、G4 是心律失常定义，本地无基线概念也无心电结构化数据，故不采用。值 `< 100` 视为填了秒，返回 `needsUnit`，不替用户换算。
+- `ctcaeCoveredCodes()` 仍只含血液学四项；全量用 `ctcaeAllCodes()`，只要 ×ULN 型用 `ctcaeUlnCodes()`。原因是骨髓抑制页的两列并置只该出现骨髓项。
 
 ---
 

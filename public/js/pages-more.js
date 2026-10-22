@@ -420,8 +420,8 @@ export function settingsBody(tab = 'store', pendingPath = '') {
       ${mineru.configured ? `<div class="token-row"><code class="masked">${esc(mineru.masked ?? '****')}</code><span class="small-note">只显示后 4 位，不提供“查看完整值”</span></div>` : '<p class="small-note">还没有 Token。没有 Token 时，PDF/图片解析会明确报错并保留原件，不会假装解析成功。</p>'}
       <div class="notice plain" style="margin:12px 0 0">
         <b>Token 放在哪</b>
-        <p style="margin:6px 0 0">只从环境变量 <code>MINERU_TOKEN</code> 或本机 <code>.secrets/mineru.json</code>（权限 600、已在 .gitignore 里）读取；不写进患者库、不进日志、不进导出。</p>
-        <p style="margin:6px 0 0">配置方式：<code>MINERU_TOKEN=sk-… npm start</code>，或按 <code>docs/MINERU.md</code> 写那个文件。</p>
+        <p style="margin:6px 0 0">唯一持久来源是本机 <code>.secrets/mineru.json</code>（权限 600、已在 .gitignore 里）；环境变量 <code>MINERU_TOKEN</code> 只作临时覆盖。不写进患者库、不进日志、不进导出。</p>
+        <p style="margin:6px 0 0">配置方式：按 <code>docs/MINERU.md</code> 写那个文件；临时排查时才用 <code>MINERU_TOKEN=sk-… npm start</code>。</p>
       </div>
       <div class="notice warn" style="margin-top:12px">Token 在这里不做在线校验：MinerU 没有无副作用的校验端点，拿解析请求去试会消耗额度并留下空批次。首次解析时若 401，会在材料上写明原因，原件保留可重试。</div>
     </div>`

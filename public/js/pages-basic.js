@@ -1,6 +1,7 @@
 /** 页面渲染：看板 / 病情整理 / 一图秀。 */
 import { S, STAGE_HINT, SYMPTOM_CODES, categoryOrder } from './state.js'
 import { apiBase } from './api.js'
+import { parseFault, faultLabel } from './parse-fault.js'
 import {
   esc, fmtNum, unitText, longDate, shortDate, relTime, today, btn, go, pill, section, head, empty,
   timelineChart, legendHTML, metricCard, gradeBadge, armChart, symptomTrack, sparkline,
@@ -183,6 +184,17 @@ export function dashboard() {
 
 /* ================= 病情整理 ================= */
 
+function faultLabelOf(doc) {
+  return faultLabel(doc.lastJob?.error_code, doc.lastJob?.error_text)
+}
+
+/** 小于 1 KB 的文件别显示成「0 KB」——那看起来像文件坏了。 */
+function fileSize(bytes) {
+  const n = Number(bytes ?? 0)
+  if (n < 1024) return `${n} B`
+  return `${(n / 1024).toFixed(n < 10240 ? 1 : 0)} KB`
+}
+
 function documentsTable() {
   const docs = d().documents?.list ?? []
   const query = S.query.trim()
@@ -193,20 +205,22 @@ function documentsTable() {
   return `<div class="table-wrap"><table><thead><tr><th>材料名称</th><th>报告日期</th><th>类型</th><th>整理状态</th><th>待核对</th><th>操作</th></tr></thead><tbody>
     ${filtered.map((doc) => {
       const state = doc.status === 'parse_failed'
-        ? pill('解析失败', 'yellow')
+        ? pill(faultLabelOf(doc), 'yellow')
         : doc.status === 'parsed'
           ? (doc.pendingCandidates ? pill('待核对', 'yellow') : pill('已核对', 'green'))
           : pill(doc.status === 'stored' ? '未解析' : '已归档', 'grey')
       const busy = S.busy[`parse:${doc.id}`]
       const canParse = doc.status === 'stored' || doc.status === 'parse_failed'
       return `<tr>
-        <td><b>${esc(doc.filename)}</b><br><small>${(doc.bytes / 1024).toFixed(0)} KB${doc.pageCount ? ` · ${doc.pageCount} 页` : ''} · 导入于 ${relTime(doc.importedAt)}</small><br><span class="hash">${esc(doc.sha256.slice(0, 16))}…</span></td>
+        <td><b>${esc(doc.filename)}</b><br><small>${fileSize(doc.bytes)}${doc.pageCount ? ` · ${doc.pageCount} 页` : ''} · 导入于 ${relTime(doc.importedAt)}</small><br><span class="hash">${esc(doc.sha256.slice(0, 16))}…</span></td>
         <td>${doc.reportDate ? longDate(doc.reportDate) : '<span class="muted">未写</span>'}</td>
         <td>${esc(kindLabel(doc.kind))}</td>
-        <td class="status-cell">${state}${doc.lastJob?.error_text ? `<div class="small-note" style="max-width:220px">${esc(doc.lastJob.error_code)}：${esc(doc.lastJob.error_text)}</div>` : ''}</td>
+        <td class="status-cell">${state}${doc.status === 'parse_failed'
+          ? `<div class="small-note" style="max-width:220px">${esc(parseFault(doc.lastJob?.error_code, doc.lastJob?.error_text).title)}</div>`
+          : ''}</td>
         <td>${doc.pendingCandidates ? `<b>${doc.pendingCandidates}</b> 项` : '—'}</td>
         <td class="cand-actions">
-          ${busy ? `<span class="small-note"><span class="spin"></span>解析中</span>` : canParse ? btn('解析', 'parse-doc', 'source-link', `data-id="${doc.id}"`) : ''}
+          ${busy ? '<span class="small-note"><span class="spin"></span>解析中（云端一般 10–30 秒）</span>' : canParse ? btn(doc.status === 'parse_failed' ? '重试' : '解析', 'parse-doc', 'source-link', `data-id="${doc.id}"`) : ''}
           ${doc.pendingCandidates ? go('看草稿', 'records', '整理草稿 / 核对', 'source-link') : ''}
           ${btn('原文', 'doc-text', 'source-link', `data-id="${doc.id}"`)}
         </td>
@@ -250,7 +264,9 @@ function recordsLibrary() {
 function draftPage() {
   const draft = d().draft
   if (!draft) return `<p class="small-note">正在读取…</p>`
-  const docs = draft.documents.filter((x) => x.candidates.length || x.document.status !== 'parsed')
+  // 每份材料都要出现：解析成功但一条候选都没有的，也要有地方解释"为什么没有"。
+  // 已处理完的会在卡片里汇总成"已处理 N 项"，不另外藏起来。
+  const docs = draft.documents
   if (!docs.length) {
     return `<div class="flow-steps"><span>原始材料</span>→<span class="on">整理草稿</span>→<span>按需核对</span>→<span>病程 / 就诊准备</span></div>
       ${empty('没有待核对的草稿', '导入并解析一份材料后，抽出来的字段会先放在这里，等你逐项确认。', go('去资料库', 'records', '资料库', 'primary'))}`
@@ -264,19 +280,44 @@ function draftPage() {
 
 function draftDocumentCard(entry) {
   const doc = entry.document
+  // 草稿里的 document 是数据库行（snake_case）；材料列表里是读模型（camelCase）——两处都认。
+  const reportDate = doc.reportDate ?? doc.report_date ?? null
+  const pageCount = doc.pageCount ?? doc.page_count ?? null
   const pending = entry.candidates.filter((c) => ['pending', 'needs_review'].includes(c.candidate.status))
   const done = entry.candidates.filter((c) => !['pending', 'needs_review'].includes(c.candidate.status))
   const suggested = entry.candidates.map((c) => c.suggestedDate).filter(Boolean).sort().at(-1) ?? doc.report_date ?? ''
   const busy = S.busy[`accept-all:${doc.id}`]
+  const job = entry.jobs?.[0] ?? doc.lastJob ?? null
   if (doc.status === 'parse_failed') {
+    const fault = parseFault(job?.error_code, job?.error_text)
+    const busyParse = S.busy[`parse:${doc.id}`]
     return `<section class="card" style="margin-bottom:14px">
-      <div class="card-head"><div><h2>${esc(doc.filename)}</h2><p>解析失败，原件仍保留</p></div>${pill('解析失败', 'yellow')}</div>
-      <p class="small-note">失败原因：${esc(entry.jobs?.[0]?.error_text ?? '未记录')}。重试成功后才会产生候选，失败不会留下半份草稿。</p>
-      <div class="form-actions">${btn('重试解析', 'parse-doc', 'primary', `data-id="${doc.id}"`)}${btn('查看原文', 'doc-text', 'soft', `data-id="${doc.id}"`)}</div>
+      <div class="card-head"><div><h2>${esc(doc.filename)}</h2><p>解析没有成功，原件与已有记录都不受影响</p></div>${pill(fault.label, 'yellow')}</div>
+      <div class="notice warn"><b>${esc(fault.title)}</b><br>${esc(fault.hint)}</div>
+      <p class="small-note">这次<b>没有产生任何候选</b>；原件还在你的资料目录里，重试或手工录入都可以。失败原因只写进解析记录，不会被当成数据。</p>
+      <details class="fault-detail"><summary>技术信息（排查用）</summary>
+        <code>${esc(job?.error_code ?? 'parse_error')}</code>${job?.error_text ? ` · ${esc(job.error_text)}` : ''}</details>
+      <div class="form-actions">
+        ${busyParse
+          ? '<span class="small-note"><span class="spin"></span>解析中（云端一般 10–30 秒）</span>'
+          : btn('重试解析', 'parse-doc', 'primary', `data-id="${doc.id}"`)}
+        ${fault.settings ? btn('去填 MinerU Token', 'open-mineru-settings', 'soft') : ''}
+        ${btn('查看原文', 'doc-text', 'soft', `data-id="${doc.id}"`)}
+        ${btn('手工录入指标', 'add-observation', 'soft')}
+      </div>
+    </section>`
+  }
+  if (doc.status === 'parsed' && entry.candidates.length === 0) {
+    const engine = job?.engine ?? 'mineru'
+    return `<section class="card" style="margin-bottom:14px">
+      <div class="card-head"><div><h2>${esc(doc.filename)}</h2><p>解析成功，但这份材料里没有认出可核对的指标</p></div>${pill('0 项候选', 'yellow')}</div>
+      <div class="notice plain">常见原因：扫描件字迹模糊、表格被压成一整段、或这份材料本来就没有指标（比如病理描述、出院小结）。<b>原件已保存</b>，这一次没有产生任何候选，可以直接手工录入你关心的数值。</div>
+      <p class="small-note">解析引擎：${esc(engine)}${pageCount ? ` · ${pageCount} 页` : ''}${reportDate ? ` · 报告日期 ${longDate(reportDate)}` : ''}。换一份更清晰的导出件再试通常更省事。</p>
+      <div class="form-actions">${btn('查看原文', 'doc-text', 'soft', `data-id="${doc.id}"`)}${btn('手工录入指标', 'add-observation', 'primary')}</div>
     </section>`
   }
   return `<section class="card" style="margin-bottom:14px">
-    <div class="card-head"><div><h2>${esc(doc.filename)}</h2><p>${doc.reportDate ? `报告日期 ${longDate(doc.reportDate)}` : '报告上没有读到日期'} · 候选 ${entry.candidates.length} 项${pending.length ? ` · ${pending.length} 项待处理` : ' · 已处理完'}</p></div>
+    <div class="card-head"><div><h2>${esc(doc.filename)}</h2><p>${reportDate ? `报告日期 ${longDate(reportDate)}` : '报告上没有读到日期'} · 候选 ${entry.candidates.length} 项${pending.length ? ` · ${pending.length} 项待处理` : ' · 已处理完'}</p></div>
       ${btn('查看原文', 'doc-text', 'soft', `data-id="${doc.id}"`)}</div>
     ${pending.length ? `<div class="bulk">
       <label><span class="form-label">整份收下时用的日期</span><input type="date" data-draft-date="${doc.id}" value="${esc(suggested)}" max="${today()}"></label>
@@ -376,6 +417,7 @@ function statusWord(v) {
  */
 function metricGroupsHTML(cards) {
   const ver = d().metrics?.ctcae?.version ?? ''
+  const gl = d().metrics?.guideline ?? null
   const groups = new Map()
   for (const card of cards) {
     if (!groups.has(card.categoryLabel)) groups.set(card.categoryLabel, [])
@@ -387,7 +429,7 @@ function metricGroupsHTML(cards) {
     const graded = list.filter((c) => c.ctcae?.grade).length
     return `<div class="metric-group"><div class="metric-group-head"><h3>${esc(cat)}</h3>
         <span>${list.length} 项${graded ? ` · ${graded} 项有 CTCAE 对照` : ''}</span></div>
-      <div class="metric-grid">${list.map((card) => metricCard(card, S.flipped.has(card.code), ver)).join('')}</div></div>`
+      <div class="metric-grid">${list.map((card) => metricCard(card, S.flipped.has(card.code), ver, gl)).join('')}</div></div>`
   }).join('')
 }
 
@@ -398,27 +440,139 @@ function metricGroupsHTML(cards) {
 function ctcaeReference() {
   const meta = d().metrics?.ctcae
   if (!meta) return ''
-  const covered = (d().metrics?.cards ?? []).filter((c) => c.ctcae?.grade)
+  const cards = d().metrics?.cards ?? []
+  const covered = cards.filter((c) => c.ctcae?.grade)
+  const needUln = cards.filter((c) => c.ctcae?.needsUln)
   return `<div class="notice plain ctcae-ref">
     <div><b>分级对照用的是 CTCAE v${esc(meta.version)}</b>（${esc(meta.publisher)}，${esc(meta.published)} 出版）——
       国际通用的不良事件术语标准，把化验值放进客观区间。<b>对照不是诊断</b>，也不是疗效判断；是否处理由治疗团队决定。</div>
     <div class="ctcae-ref-cols">
       <div><span class="marrow-key">这一版能对照的项</span>
-        <p>白细胞、中性粒细胞绝对值、血红蛋白、血小板——这四项在标准里有<b>绝对数值界限</b>，可以直接用。
-        ALT/AST/肌酐一类"×正常上限"的条目需要化验单上的参考范围上限，本地没有就不启用，也不近似。</p></div>
+        <p>白细胞、中性粒细胞绝对值、血红蛋白、血小板的界限是<b>绝对数值</b>，可以直接对照。
+        ALT / AST / 碱性磷酸酶 / 总胆红素 / 肌酐的界限写成「×正常上限」，所以<b>只在这张化验单带参考上限时</b>才给级；
+        QTc 按绝对值（450 / 481 / 501 ms）对照，最高到 3 级。</p></div>
       <div><span class="marrow-key">怎么看这个级</span>
-        <p>卡上的徽章写"对照 CTCAE v${esc(meta.version)} · N 级"，翻到背面看这一级对应的数值区间。
-        用了成人通用正常下限的地方会标"按通用下限近似"——以你化验单上的参考范围为准。</p></div>
+        <p>卡上的徽章写「对照 CTCAE v${esc(meta.version)} · N 级」，翻到背面看这一级对应的数值区间。
+        用了成人通用正常下限的地方会标「按通用下限近似」；「×正常上限」类会写实测倍数（如 3.2×ULN）。
+        参考上限一律以你那张化验单为准，工作台不用通用值替你除。</p></div>
     </div>
     ${covered.length ? `<p class="small-note" style="margin-top:6px">当前档案里有 ${covered.length} 项落在对照区间内：${esc(covered.map((c) => `${c.name}（${c.ctcae.grade} 级）`).join('、'))}。</p>` : '<p class="small-note" style="margin-top:6px">当前档案里还没有指标落到对照区间内。</p>'}
+    ${needUln.length ? `<p class="small-note">这 ${needUln.length} 项要按化验单的参考上限分级，但这条记录里没有上限，所以只显示数值、不给级：${esc(needUln.map((c) => c.name).join('、'))}。补录时填上化验单的参考上限，级别就会出现——工作台不拿通用上限替你除。</p>` : ''}
     <div class="actions" style="margin-top:8px"><a class="source-link" href="${esc(apiBase())}/api/reference/ctcae" target="_blank" rel="noreferrer">标准原文 PDF ↗</a><a class="source-link" href="${esc(meta.sourceUrl)}" target="_blank" rel="noreferrer">NCI 发布页 ↗</a></div>
   </div>`
+}
+
+/**
+ * 指南出处块（G1，2026-10-22）。
+ *
+ * 只做一件事：把"这条指标在指南里是哪一页、原文怎么写"摆出来。
+ * 三条纪律：① 摘录不给处置条文；② 两套口径并列，不写"以哪个为准"；
+ * ③ 没有指南条目的项也说明原因（未单列 / 需要化验单上限），避免"没显示=没问题"。
+ */
+function guidelineReference() {
+  const meta = d().metrics?.guideline
+  if (!meta) return ''
+  const cards = d().metrics?.cards ?? []
+  const notes = d().metrics?.guidelineNotes ?? {}
+  const seen = new Set()
+  const rows = []
+  for (const c of cards) {
+    if (!c.guideline || seen.has(c.code)) continue
+    seen.add(c.code)
+    rows.push({ name: c.name, ref: c.guideline })
+  }
+  const kindText = (r) => (r.kind === 'grade' ? '有分级' : '无分级（关注线）')
+  const noteKeys = Object.keys(notes).filter((k) => !seen.has(k))
+  const noteName = (code) => (cards.find((c) => c.code === code)?.name ?? code)
+  return `<div class="notice plain gl-ref">
+    <div><b>指南出处</b>：${esc(meta.org)}《${esc(meta.short)}》${esc(meta.version)}（${esc(meta.published)} 发布）。这里只写"原文在第几页怎么写"，<b>不是对你这份记录的判断</b>；分级的主口径仍是 CTCAE v${esc(d().metrics?.ctcae?.version ?? '')}。</div>
+    ${rows.length ? `<details class="fault-detail"><summary>看这 ${rows.length} 项的指南原文位置</summary>
+      <table><thead><tr><th>指标</th><th>指南位置</th><th>原文摘录</th><th>性质</th></tr></thead><tbody>
+      ${rows.map((r) => `<tr><td>${esc(r.name)}</td><td class="pg">P${esc(r.ref.page)}${r.ref.table ? ` ${esc(r.ref.table)}` : ''}</td><td class="q">${esc(r.ref.excerpt)}</td><td class="kind">${esc(kindText(r.ref))}</td></tr>`).join('')}
+      </tbody></table></details>` : '<p class="small-note" style="margin-top:6px">当前档案里的指标还没有可对照的指南条目。</p>'}
+    ${noteKeys.length ? `<details class="fault-detail gl-notes"><summary>这几项指南怎么写（${noteKeys.length} 项）</summary>
+      <ul class="gl-note-list">${noteKeys.map((k) => `<li><b>${esc(noteName(k))}</b>：${esc(notes[k])}</li>`).join('')}</ul></details>` : ''}
+    <p class="small-note" style="margin-top:4px">该版本校验和（sha256 前 12 位）：${esc(String(meta.sha256 ?? '').slice(0, 12))}…</p>
+  </div>`
+}
+
+/**
+ * 随访节奏块（G2，2026-10-22）。
+ *
+ * 只做一件事：把「指南的间隔」和「你的手术日」摆在同一张卡上，算出前后两个参考节点。
+ * 三条纪律：① 用词是「参考节点」，不是「该复查了」；② 不弹提醒、不发通知；
+ * ③ 分期没记录就写「未按分期调整」，注 b 只并列提示、不改主节奏。
+ */
+function followupBlock() {
+  const fu = d().metrics?.followup
+  if (!fu) return ''
+  const meta = fu.meta ?? {}
+  const plan = fu.plan
+  const cp = plan?.checkpoints
+  // 上一个节点用「已过 N 天」，下一个用「还有 N 天」——同一个 when() 会把过期的说成还没到。
+  const since = (n) => (n === 0 ? '就是今天' : n === null || n === undefined ? '' : `已过 ${Math.abs(n)} 天`)
+  const until = (n) => (n === 0 ? '就是今天' : n === null || n === undefined ? '' : `还有 ${Math.abs(n)} 天`)
+
+  const head0 = `<div class="card-head"><div><h2>随访节奏</h2><p>指南写的间隔 + 你的手术日。这里只算「参考节点」，不是给你排复查计划。</p></div><span class="pill">${esc(meta.short ?? '')} · P${esc(plan?.page ?? 208)}</span></div>`
+
+  if (fu.missing === 'surgery') {
+    return `<section class="card fu-card">${head0}
+      <p class="small-note">还没记录手术日期，所以不推算节点——随便拿一个日期当起点会给出错的日历。在「临床 → 治疗历程」补一条手术记录后，这里会出现参考节点。</p>
+      <p class="small-note">指南的通用节奏：术后 2 年内每 3 个月、第 3–5 年每 6 个月、5 年后每年 1 次（表 9.5，P208）。</p>
+    </section>`
+  }
+
+  const lines = []
+  lines.push(`<div><dt>指南节奏</dt><dd>${esc(plan.phaseLabel)} · 每 ${esc(plan.intervalMonths)} 个月（${esc(plan.table)} · P${esc(plan.page)}）</dd></div>`)
+  lines.push(`<div><dt>我的术后</dt><dd>${esc(String(fu.surgery.monthsSince))} 个月（${esc(longDate(fu.surgery.date))} 手术${fu.surgery.name ? `，${esc(fu.surgery.name)}` : ''}）</dd></div>`)
+  if (cp?.previous) {
+    lines.push(`<div><dt>上一个参考节点</dt><dd>${esc(longDate(cp.previous.date))} · ${esc(since(cp.previous.daysSince))}<span class="fu-flag ${esc(cp.previous.state)}">${esc(cp.previous.stateLabel)}</span></dd></div>`)
+  }
+  if (cp?.next) {
+    lines.push(`<div><dt>下一个参考节点</dt><dd>${esc(longDate(cp.next.date))} · ${esc(until(cp.next.daysUntil))}<span class="fu-flag ${esc(cp.next.state)}">${esc(cp.next.stateLabel)}</span></dd></div>`)
+  }
+
+  const checks = fu.checks ?? {}
+  const routineNames = (checks.routine ?? []).map((c) => c.name.replace(/（.*?）/, '')).join('、')
+  const special = checks.special ?? []
+  const whenNeeded = checks.whenNeeded ?? []
+  const unavailable = checks.unavailable ?? []
+  const tagEntries = Object.entries(fu.tags ?? {})
+  const tagText = tagEntries.length
+    ? tagEntries.map(([, v]) => `${v.label}（${v.state === 'ongoing' ? '在用' : '用过'}：${v.by}）`).join('；')
+    : '治疗记录里没匹配到具体药名，所以特殊检查一项都没勾上'
+
+  const relax = fu.relaxHint
+    ? `<div class="notice plain fu-relax"><b>${esc(fu.relaxHint.note)}（P${esc(fu.relaxHint.page)}）</b> ${esc(fu.relaxHint.text)}
+        <details><summary>看原文怎么写</summary><p class="small-note">${esc(fu.relaxHint.quote)}</p></details>
+        <p class="small-note">${esc(fu.relaxHint.disclaimer)}</p></div>`
+    : ''
+
+  return `<section class="card fu-card">${head0}
+    <dl class="fu-lines">${lines.join('')}</dl>
+    <p class="small-note">${esc(meta.graceNote ?? '')} 分期${fu.stage?.known ? `已记录（${esc(fu.stage.text)}）` : '未记录，因此只给通用节奏，未按分期调整'}。</p>
+    ${relax}
+    ${special.length ? `<p class="small-note fu-hit">按你的治疗记录，表 9.6 里的特殊检查对上这几项：${special.map((c) => `${esc(c.name)}（${esc(c.freqText)}）`).join('、')}。</p>` : ''}
+    <details class="fault-detail fu-checks"><summary>按表 9.6，这张表里列了哪些检查（${(checks.routine ?? []).length + special.length + whenNeeded.length + unavailable.length} 项）</summary>
+      <p><b>常规检查</b>（节奏跟着上面的间隔）：${esc(routineNames)}</p>
+      <p><b>特殊检查</b>（按你的治疗记录匹配）：${esc(tagText)}</p>
+      ${special.length ? `<table><thead><tr><th>项目</th><th>频率</th><th>适用人群</th><th>位置</th></tr></thead><tbody>
+        ${special.map((c) => `<tr><td>${esc(c.name)}</td><td>${esc(c.freqText)}</td><td class="q">${esc(c.who)}</td><td class="pg">P${esc(c.page)}</td></tr>`).join('')}
+      </tbody></table>` : '<p class="small-note">没有命中任何特殊检查的适用人群。</p>'}
+      ${whenNeeded.length ? `<p class="small-note">${whenNeeded.map((c) => esc(c.name)).join('、')}：<b>认为必要时</b>，没有固定间隔。</p>` : ''}
+      ${unavailable.length ? `<p class="small-note">${unavailable.map((c) => `${esc(c.name)}（${esc(c.who)}）`).join('、')}：${esc(unavailable[0].unavailable ?? '本地没有对应的结构化字段')}。</p>` : ''}
+      <p class="small-note">出处：${esc(meta.org ?? '')}《${esc(meta.short ?? '')}》${esc(meta.version ?? '')}，9.5 术后随访频率（P208）· 9.6 术后随访检查项目（P209）。</p>
+    </details>
+    <div class="actions" style="margin-top:10px">${btn('把节奏转成想问的问题', 'followup-question', 'soft')}${btn('记一条我自己的待办', 'followup-task', 'text-button')}</div>
+  </section>`
 }
 
 function recordsMetrics() {
   const cards = d().metrics?.cards ?? []
   return `<div class="notice">趋势只呈现记录，不代表疗效、复发或诊断判断；不同单位与方法需分开核对。方法变化时线会断开，不拼接。</div>
+  ${followupBlock()}
   ${ctcaeReference()}
+  ${guidelineReference()}
   <div class="form-actions" style="margin:-4px 0 10px">${btn('＋ 手工补录一个值', 'add-observation', 'primary')}${btn('去一图秀看趋势', 'go', 'soft', 'data-page="timeline"')}</div>
   ${metricGroupsHTML(cards)}
   <div class="help-box">点一张卡，原地翻转看最近几次；卡片位置和尺寸不变。没有记录的指标也会列出，避免"没显示 = 正常"的误读。</div>`

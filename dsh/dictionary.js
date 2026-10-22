@@ -25,9 +25,14 @@ export const METRICS = [
   { code: 'plt', name: '血小板', unit: '10⁹/L', category: 'cbc', dec: 0, comparable_by: 'lab_method' },
   // 3.3 生化
   { code: 'alt', name: 'ALT', unit: 'U/L', category: 'chemistry', dec: 0, comparable_by: 'lab_method' },
+  // G3（2026-10-22）：这几项的 CTCAE 分级是「×化验单参考上限」，没有参考上限就只记值、不分级
+  { code: 'ast', name: 'AST', unit: 'U/L', category: 'chemistry', dec: 0, comparable_by: 'lab_method', note: '分级需化验单参考上限' },
+  { code: 'alp', name: '碱性磷酸酶', unit: 'U/L', category: 'chemistry', dec: 0, comparable_by: 'lab_method', note: '分级需化验单参考上限' },
+  { code: 'tbil', name: '总胆红素', unit: 'μmol/L', category: 'chemistry', dec: 1, comparable_by: 'lab_method', note: '分级需化验单参考上限' },
   { code: 'cr', name: '肌酐', unit: 'μmol/L', category: 'chemistry', dec: 0, comparable_by: 'lab_method' },
   // 3.4 器官功能与骨健康（只在治疗暴露背景下看）
   { code: 'lvef', name: 'LVEF', unit: '%', category: 'cardiac_bone', dec: 0, comparable_by: 'lab_method' },
+  { code: 'qtc', name: 'QTc', unit: 'ms', category: 'cardiac_bone', dec: 0, comparable_by: 'lab_method', note: '分级按绝对值；不含「较基线 >60ms」分支' },
   { code: 'bmd_ls', name: '腰椎骨密度 T 值', unit: '—', category: 'cardiac_bone', dec: 1, comparable_by: 'lab_method' },
   // 3.5 体成分与营养
   { code: 'weight', name: '体重', unit: 'kg', category: 'nutrition', dec: 1, comparable_by: 'none' },

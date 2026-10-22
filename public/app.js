@@ -2,6 +2,7 @@
 import { S, boot, resetBoot, refresh, STAGE_HINT, SYMPTOM_CODES, ARM_STAGES } from './js/state.js'
 import { api, uploadDocument, guessKind, isTextFile } from './js/api.js'
 import { discussWithAgent } from './js/agent.js'
+import { parseFault } from './js/parse-fault.js'
 import {
   $, $$, esc, fmtNum, unitText, longDate, today, toast, openModal, closeModal, downloadText,
   btn, go, pill, section, empty, head, codeBlock,
@@ -271,10 +272,13 @@ function observationModal() {
       <label><span class="form-label">指标</span><select name="metricCode">${metrics.map((m) => `<option value="${m.code}">${esc(m.name)}${m.unit && m.unit !== '—' ? `（${esc(m.unit)}）` : ''}</option>`).join('')}</select></label>
       <label><span class="form-label">日期</span><input type="date" name="occurredOn" value="${today()}" max="${today()}" required></label>
       <label><span class="form-label">数值</span><input name="value" type="number" step="any" required placeholder="例如 3.8"></label>
+      <label><span class="form-label">化验单参考上限（选填）</span><input name="refHigh" type="number" step="any" placeholder="例如 40"></label>
       <label><span class="form-label">方法 / 设备（选填）</span><input name="method" maxlength="60" placeholder="例如同一实验室 ECLIA"></label>
     </div>
     <label style="margin-top:12px"><span class="form-label">备注（选填）</span><input name="note" maxlength="200" placeholder="例如：随访复查"></label>
-    <p class="small-note">手工补录直接进事实层（不经候选）；方法不同的值会在趋势里断开，不拼接。</p></form>`,
+    <p class="small-note">手工补录直接进事实层（不经候选）；方法不同的值会在趋势里断开，不拼接。
+    参考上限只用于 ALT / AST / 碱性磷酸酶 / 总胆红素 / 肌酐这几项的分级换算——CTCAE 对它们写的是「×正常上限」，
+    没有上限就给不出级别，工作台也不会拿通用值替你除。</p></form>`,
   `${btn('取消', 'close')}<button type="submit" form="observation-form" class="primary">保存这个值</button>`)
 }
 
@@ -483,6 +487,8 @@ const actions = {
   }),
 
   settings: () => settingsModal('store'),
+  // 解析失败卡片上的「去填 Token」：直接落在 MinerU 那一页，不用用户自己找 tab。
+  'open-mineru-settings': () => settingsModal('parse'),
   about: () => settingsModal('about'),
   help: helpModal,
   session: sessionModal,
@@ -560,6 +566,27 @@ const actions = {
   'add-question': () => questionModal('fact'),
   'add-viewpoint': () => viewpointModal('patient'),
   'add-viewpoint-caregiver': () => viewpointModal('caregiver'),
+
+  // 随访节奏（G2）：节点只转成「问题」或「我自己的待办」，**不排计划、不发提醒**。
+  'followup-question': async () => {
+    const fu = S.data.metrics?.followup
+    const cp = fu?.plan?.checkpoints
+    const next = cp?.next?.date
+    const prev = cp?.previous?.date
+    if (!next) return toast('还没有手术日期，先补一条手术记录')
+    const text = `按 CBCS 2025 表 9.5 的间隔（${fu.plan.phaseLabel}每 ${fu.plan.intervalMonths} 个月），我的参考节点是 ${longDate(prev ?? fu.surgery.date)} 与 ${longDate(next)}；我实际的复查安排在什么时候、需要提前做哪些检查？`
+    await guarded(() => api('/api/questions', { method: 'POST', body: { text, kind: 'fact' } }), '已加入问题清单')
+    closeModal()
+  },
+  'followup-task': async () => {
+    const fu = S.data.metrics?.followup
+    const next = fu?.plan?.checkpoints?.next?.date
+    if (!next) return toast('还没有手术日期，先补一条手术记录')
+    await guarded(() => api('/api/tasks', {
+      method: 'POST',
+      body: { title: `问一下下次复查安排（参考节点 ${next}）`, dueOn: null, kind: 'self', detail: '我自己记的待办，不是工作台的提醒' },
+    }), '已加一条待办')
+  },
 
   'save-question': async (el) => {
     const id = el.dataset.id
@@ -653,11 +680,26 @@ const actions = {
     const id = el.dataset.id
     S.busy[`parse:${id}`] = true
     rerender()
-    const result = await guarded(() => api(`/api/documents/${id}/parse`, { method: 'POST', body: { strategy: 'auto' } }))
+    let result = null
+    let failure = null
+    try {
+      result = await api(`/api/documents/${id}/parse`, { method: 'POST', body: { strategy: 'auto' } })
+    } catch (error) {
+      // 原始错误码与报文留给失败卡片（排查用），toast 只给人话结论
+      failure = parseFault(error.code, error.message)
+      if (!['NO_WORKSPACE'].includes(error.code)) console.warn('[parse]', error)
+    }
     delete S.busy[`parse:${id}`]
     if (result) {
-      toast(`解析完成：新增 ${result.inserted} 项待核对${result.pages ? ` · ${result.pages} 页` : ''}`)
+      const model = result.modelVersion ? `（${result.modelVersion}）` : ''
+      toast(result.inserted > 0
+        ? `解析完成${model}：新增 ${result.inserted} 项待核对${result.pages ? ` · ${result.pages} 页` : ''}`
+        : `解析完成${model}，但没认出这份材料里的指标；原件已保存，可手工录入`)
       navigate('records', '整理草稿 / 核对')
+    } else if (failure) {
+      toast(failure.title)
+      await refresh()
+      rerender()
     } else {
       rerender()
     }
@@ -961,7 +1003,7 @@ document.addEventListener('submit', async (event) => {
       await api('/api/drains', { method: 'POST', body: { date: data.date, value: Number(data.value), note: data.note || null } })
       closeModal(); await refresh(); rerender(); toast(Number(data.value) === 0 ? '已记录当日拔管' : '引流量已保存')
     } else if (form.id === 'observation-form') {
-      await api('/api/observations', { method: 'POST', body: { metricCode: data.metricCode, occurredOn: data.occurredOn, value: data.value, method: data.method || null, note: data.note || null } })
+      await api('/api/observations', { method: 'POST', body: { metricCode: data.metricCode, occurredOn: data.occurredOn, value: data.value, method: data.method || null, note: data.note || null, refHigh: data.refHigh || null } })
       closeModal(); await refresh(); rerender(); toast('已补录一个值')
     } else if (form.id === 'treatment-form') {
       await api('/api/treatments', { method: 'POST', body: {

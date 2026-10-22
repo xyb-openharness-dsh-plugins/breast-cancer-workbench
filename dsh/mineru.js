@@ -35,18 +35,21 @@ export function maskToken(token) {
 }
 
 /**
- * Token 解析优先级：显式传入 > 环境变量 `MINERU_TOKEN` > `.secrets/mineru.json`。
+ * Token 解析优先级：显式传入 > `.secrets/mineru.json` > 环境变量 `MINERU_TOKEN`。
+ * 文件优先、env 次之（2026-10-22 统一口径）：界面里保存的 Token 永远生效，
+ * env 只在文件缺失时兜底——否则一条遗留的过期 env 会长期盖住新存的 Token，
+ * 表现为"换了 Token 还是 401"，极难自查。
  * 三处都没有就报 `NO_TOKEN`，**不静默用匿名请求**（那只会得到一个看不懂的 401）。
  */
 export function resolveToken({ token = null, env = process.env, secretFile = MINERU_SECRET_FILE } = {}) {
   if (token?.trim()) return { token: token.trim(), source: 'explicit' }
-  if (env?.MINERU_TOKEN?.trim()) return { token: env.MINERU_TOKEN.trim(), source: 'env:MINERU_TOKEN' }
   try {
     const parsed = JSON.parse(readFileSync(secretFile, 'utf8'))
     if (parsed?.token?.trim()) return { token: parsed.token.trim(), source: `.secrets/mineru.json` }
   } catch {
     /* 文件不存在或不是 JSON 都视为"没配"，不掩盖真正的问题 */
   }
+  if (env?.MINERU_TOKEN?.trim()) return { token: env.MINERU_TOKEN.trim(), source: 'env:MINERU_TOKEN' }
   throw new MineruError(
     'NO_TOKEN',
     '没有 MinerU Token：设置环境变量 MINERU_TOKEN，或写 .secrets/mineru.json（{"token": "sk-..."}）。该文件已在 .gitignore 里。',
@@ -54,6 +57,26 @@ export function resolveToken({ token = null, env = process.env, secretFile = MIN
 }
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+/**
+ * 解析模型：默认 `pipeline`，接口不接受这个参数时退回 `vlm`。
+ *
+ * 历史（2026-10-21 实测）：同一份靠空格分列的检验单 PDF，`pipeline` 会把整张表压成 3 个 `<td>`，
+ * 210 / 22 直接丢失，抽取出 0 条候选；`vlm` 还原成 4 列、5/5 全中。当时因此默认改成了 vlm。
+ *
+ * 2026-10-22 统一口径决定：**默认回到 pipeline**（跨工作台统一，便于比较解析结果）。
+ * 代价是上面那类压平表格可能丢列，核对时留意；`settings.mineruModel` 传 `vlm` 可覆盖（暂无界面入口）。
+ * 只有接口明确说模型参数不被接受时才换 vlm，不因为"文件解析失败"就换模型重试（那只是多花一次额度）。
+ */
+export const MINERU_MODEL_DEFAULT = 'pipeline'
+export const MINERU_MODEL_FALLBACK = 'vlm'
+
+/** 这个错误值得换模型再试一次吗？只认"模型参数本身不被接受"，不认文件失败。 */
+export function modelFallbackWorthy(error) {
+  if (!error) return false
+  if (!['API_ERROR', 'BAD_INPUT'].includes(error.code)) return false
+  return /model|模型|version|版本|参数|param/i.test(String(error.message ?? ''))
+}
 
 export class MineruClient {
   /**
@@ -214,7 +237,8 @@ export class MineruClient {
    */
   async parse({
     bytes, filename, dataId = null, intervalMs = 3000, timeoutMs = 300000,
-    enableFormula = true, enableTable = true, language = 'ch', modelVersion = null, pageRanges = null,
+    enableFormula = true, enableTable = true, language = 'ch',
+    modelVersion = MINERU_MODEL_DEFAULT, pageRanges = null,
   }) {
     if (!bytes || bytes.length === 0) throw new MineruError('BAD_INPUT', '文件内容为空，不提交解析')
     if (!filename?.trim()) throw new MineruError('BAD_INPUT', '缺少文件名（MinerU 按扩展名判类型）')
@@ -267,6 +291,7 @@ export class MineruClient {
       markdown,
       contentList,
       pages: first.progress?.total_pages ?? pagesFromList ?? null,
+      modelVersion,
       names: zip.names,
     }
   }

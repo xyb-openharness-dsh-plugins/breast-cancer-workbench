@@ -13,16 +13,54 @@
  */
 
 import { ctcaeGrade, ctcaeInfo, ctcaeCoveredCodes } from './ctcae.js'
+import { cbcsView, guidelineRef, guidelineMeta, guidelineNotesMap } from './guideline.js'
+import { buildFollowupPlan, cadenceMeta } from './cadence.js'
 
-/** 指标卡用的 CTCAE 对照；gradeCtcae 返回 null 表示该指标无定义，不透传字段。 */
-function gradeCtcae(code, value) {
-  const g = ctcaeGrade(code, value)
-  return g && g.grade ? { grade: g.grade, band: g.band, term: g.term, approx: g.approx, note: g.note } : null
+/**
+ * 指标卡用的 CTCAE 对照；返回 null 表示该指标无定义，不透传字段。
+ * `needsUln` / `needsUnit` 也透传：界面要能说"为什么这一项没有级别"，而不是留白。
+ */
+function gradeCtcae(code, value, uln = null) {
+  const g = ctcaeGrade(code, value, { uln })
+  if (!g) return null
+  if (!g.grade && !g.needsUln && !g.needsUnit) return null
+  return {
+    grade: g.grade, band: g.band, term: g.term, approx: g.approx, note: g.note,
+    needsUln: Boolean(g.needsUln), needsUnit: Boolean(g.needsUnit),
+    ratio: g.ratio ?? null, uln: g.uln ?? null,
+  }
 }
 
 /** CTCAE 元信息（版本/来源/免责），前端渲染来源与免责用。 */
 export function ctcaeMeta() {
   return ctcaeInfo()
+}
+
+/** 指南出处元信息（文档名/版本/校验和/免责），前端渲染"这条出自哪一版"用。 */
+export function guidelineMetaInfo() {
+  return guidelineMeta()
+}
+
+/** 指南未单列/暂不可对照的项及原因（前端在出处块末尾一行说明）。 */
+export function guidelineNotesInfo() {
+  return guidelineNotesMap()
+}
+
+/** 随访节奏元信息（表 9.5 / 9.6 出处与免责）。 */
+export function cadenceMetaInfo() {
+  return cadenceMeta()
+}
+
+/**
+ * 随访节奏（G2）：指南间隔 + 你的手术日 → 参考节点。
+ * 只是把两个日历摆在一起，**不排计划、不发提醒、不做分期判断**（见 dsh/cadence.js 顶部）。
+ */
+export function followupPlan(store, subjectId, { today = new Date().toISOString().slice(0, 10) } = {}) {
+  return buildFollowupPlan({
+    treatments: treatmentList(store, subjectId),
+    diagnoses: diagnosisList(store, subjectId),
+    today,
+  })
 }
 
 export const STAGE_LABELS = {
@@ -244,6 +282,9 @@ export function metricSeries(store, subjectId, { includeEmpty = true } = {}) {
       value: row.value_num,
       unit: row.unit,
       method: row.lab_method ?? null,
+      // 化验单自带的参考范围（可能会缺）：×ULN 型分级只认这一处，不拿通用值代替
+      refLow: row.ref_low ?? null,
+      refHigh: row.ref_high ?? null,
       recordId: row.record_id ?? null,
       source: row.doc_name ?? SOURCE_KIND_LABELS[row.r_source_kind] ?? '本人记录',
       flag: row.flag ?? null,
@@ -314,7 +355,11 @@ export function metricCards(store, subjectId, { withCtcae = true } = {}) {
     breakCount: Math.max(0, s.segments.length - 1),
     // CTCAE v5.0 对照（2026-10-20 用户定则）：只对最新值给分级；分级是客观区间对照，
     // 不是诊断（disclaimer 随 ctcaeInfo 透传给前端，前端必须显示来源与免责）。
-    ctcae: withCtcae && s.latest ? gradeCtcae(s.code, s.latest.value) : null,
+    ctcae: withCtcae && s.latest ? gradeCtcae(s.code, s.latest.value, s.latest.refHigh) : null,
+    // 指南出处（G1，2026-10-22）：ref = 这条指标在指南哪一页；cbcs = 指南口径的并列一行。
+    // 主口径仍是 CTCAE，cbcs **不覆盖** ctcae，前端必须分两行显示。
+    guideline: guidelineRef(s.code),
+    cbcs: withCtcae && s.latest ? cbcsView(s.code, s.latest.value) : null,
   }))
 }
 

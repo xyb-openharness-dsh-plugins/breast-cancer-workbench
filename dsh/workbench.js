@@ -17,7 +17,7 @@ import { homedir } from 'node:os'
 import { openStore } from './store.js'
 import { createImportService, ImportError, assertMedicalDate, DOCUMENT_KINDS } from './import.js'
 import { extractCandidates } from './labparse.js'
-import { resolveToken, maskToken } from './mineru.js'
+import { resolveToken, maskToken, MINERU_MODEL_DEFAULT, MINERU_MODEL_FALLBACK, modelFallbackWorthy } from './mineru.js'
 import { seedDemo, listDemos, clearDemo, DEMO_DATASETS } from './demo.js'
 import {
   overview, documentList, documentCounts, metricSeries, metricCards, armHistory, armSeries,
@@ -25,6 +25,7 @@ import {
   careList, renderVisitMarkdown, exportFingerprint, hashOf, exportHistory,
   subjectState, STAGE_LABELS, CATEGORY, POINT_LABELS, ARM_POINTS,
   TREATMENT_KIND_LABELS, SYMPTOM_LABELS, TASK_KIND_LABELS, CARE_KIND_LABELS, ctcaeMeta,
+  guidelineMetaInfo, guidelineNotesInfo, followupPlan, cadenceMetaInfo,
 } from './readmodels.js'
 
 const DB_NAME = 'pinkypal.sqlite'
@@ -292,6 +293,10 @@ export class Workbench {
       cards: metricCards(this.#store, subjectId),
       categories: Object.entries(CATEGORY).map(([code, meta]) => ({ code, ...meta })),
       ctcae: ctcaeMeta(),
+      guideline: guidelineMetaInfo(),
+      guidelineNotes: guidelineNotesInfo(),
+      cadence: cadenceMetaInfo(),
+      followup: followupPlan(this.#store, subjectId),
     }
   }
 
@@ -534,10 +539,16 @@ export class Workbench {
     return { symptom: symptomList(this.#store, this.requireSubject(), { includePrivate: true }).find((s) => s.id === row.id) }
   }
 
-  addObservation({ metricCode, occurredOn, value, unit = null, method = null, note = null }) {
+  addObservation({ metricCode, occurredOn, value, unit = null, method = null, note = null, refLow = null, refHigh = null }) {
     assertDate(occurredOn, '记录日期')
     const num = Number(value)
     if (!Number.isFinite(num)) throw new AppError('NOT_A_NUMBER', '数值必须是数字', 400)
+    // 参考范围只用于分级换算，不参与任何判断；给了负数/上限小于下限就是录错，直接拒
+    const lo = refLow === null || refLow === '' ? null : Number(refLow)
+    const hi = refHigh === null || refHigh === '' ? null : Number(refHigh)
+    if (lo !== null && !Number.isFinite(lo)) throw new AppError('BAD_REF', '参考下限必须是数字', 400)
+    if (hi !== null && !Number.isFinite(hi)) throw new AppError('BAD_REF', '参考上限必须是数字', 400)
+    if (lo !== null && hi !== null && hi < lo) throw new AppError('BAD_REF', '参考上限不能小于下限', 400)
     const def = this.#store.metric(metricCode)
     const subjectId = this.requireSubject()
     const { record, fact } = this.#store.withTransaction(() => {
@@ -545,6 +556,7 @@ export class Workbench {
       const obs = this.#store.addObservation({
         subjectId, metricCode, observedOn: occurredOn, value: num,
         unit: unit ?? def.unit, labMethod: method, recordId: rec.id,
+        refLow: lo, refHigh: hi,
       })
       return { record: rec, fact: obs }
     })
@@ -764,30 +776,51 @@ export class Workbench {
     }
   }
 
+  /**
+   * 走 MinerU 解析。**默认 pipeline 模型**（2026-10-22 跨工作台统一口径）。
+   *
+   * 注意历史实测：pipeline 会把靠空格分列的表格压成一格，数值与项目名串在一起，
+   * 极端情况会丢指标；vlm 能还原成多列。默认虽是 pipeline，但 `settings.mineruModel`
+   * 可以传 `vlm` 覆盖（只接受 vlm / pipeline；目前没有界面入口，属预留口子）。
+   *
+   * 只有当接口明确不接受这个模型参数时才换下一个模型（`modelFallbackWorthy`），
+   * 文件本身解析失败不换模型重试——那只会多花一次额度，结论还是失败。
+   */
   async #parseWithMineru(doc, bytes) {
-    try {
-      const result = await this.#imports.parseWithMineru({
-        documentId: doc.id,
-        bytes,
-        filename: doc.filename,
-        options: {},
-      })
-      return {
-        engine: 'mineru',
-        inserted: result.inserted,
-        warnings: result.warnings ?? [],
-        reportDate: result.reportDate ?? null,
-        pages: result.pages ?? null,
-        batchId: result.batchId ?? null,
-        excerpt: result.markdown ? result.markdown.slice(0, 4000) : null,
-        document: documentList(this.#store, this.requireSubject()).find((d) => d.id === doc.id),
+    const preferred = ['vlm', 'pipeline'].includes(this.#settings.mineruModel)
+      ? this.#settings.mineruModel
+      : MINERU_MODEL_DEFAULT
+    const attempts = preferred === MINERU_MODEL_FALLBACK ? [preferred] : [preferred, MINERU_MODEL_FALLBACK]
+    let lastError = null
+    for (const modelVersion of attempts) {
+      try {
+        const result = await this.#imports.parseWithMineru({
+          documentId: doc.id,
+          bytes,
+          filename: doc.filename,
+          options: { modelVersion },
+        })
+        return {
+          engine: `mineru:${modelVersion}`,
+          modelVersion,
+          inserted: result.inserted,
+          warnings: result.warnings ?? [],
+          reportDate: result.reportDate ?? null,
+          pages: result.pages ?? null,
+          batchId: result.batchId ?? null,
+          excerpt: result.markdown ? result.markdown.slice(0, 4000) : null,
+          document: documentList(this.#store, this.requireSubject()).find((d) => d.id === doc.id),
+        }
+      } catch (error) {
+        lastError = error
+        if (!modelFallbackWorthy(error)) break
       }
-    } catch (error) {
-      if (error?.code === 'NO_TOKEN' || error?.code === 'UNAUTHORIZED' || error?.code === 'TIMEOUT' || error?.code === 'TASK_FAILED') {
-        throw new AppError(error.code, error.message, error.code === 'UNAUTHORIZED' ? 502 : 504)
-      }
-      throw error
     }
+    if (lastError?.code === 'NO_TOKEN' || lastError?.code === 'UNAUTHORIZED'
+      || lastError?.code === 'TIMEOUT' || lastError?.code === 'TASK_FAILED') {
+      throw new AppError(lastError.code, lastError.message, lastError.code === 'UNAUTHORIZED' ? 502 : 504)
+    }
+    throw lastError
   }
 
   /** 原文对照：只读原件文本（文本类）；PDF 不给假文本，明确说需要解析器。 */

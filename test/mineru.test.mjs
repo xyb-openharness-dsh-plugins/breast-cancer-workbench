@@ -7,7 +7,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { deflateRawSync } from 'node:zlib'
-import { MineruClient, resolveToken, maskToken } from '../dsh/mineru.js'
+import { MineruClient, resolveToken, maskToken, MINERU_MODEL_DEFAULT, MINERU_MODEL_FALLBACK, modelFallbackWorthy } from '../dsh/mineru.js'
 import { readZip, ZipError } from '../lib/zip.js'
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -124,13 +124,16 @@ const CONTENT_LIST = [
 
 /* ---------------- Token ---------------- */
 
-test('Token 优先级：显式 > 环境 > 私密文件；都没有就明确报错', () => {
+test('Token 优先级：显式 > 私密文件 > 环境；都没有就明确报错', () => {
   const dir = mkdtempSync(join(tmpdir(), 'pinky-mineru-'))
   const secret = join(dir, 'mineru.json')
   writeFileSync(secret, JSON.stringify({ token: 'sk-from-file' }))
 
   assert.deepEqual(resolveToken({ token: 'sk-explicit', env: { MINERU_TOKEN: 'sk-env' }, secretFile: secret }), { token: 'sk-explicit', source: 'explicit' })
-  assert.deepEqual(resolveToken({ env: { MINERU_TOKEN: 'sk-env' }, secretFile: secret }), { token: 'sk-env', source: 'env:MINERU_TOKEN' })
+  // 文件优先（2026-10-22 统一口径）：两者都在时用文件里那把
+  assert.deepEqual(resolveToken({ env: { MINERU_TOKEN: 'sk-env' }, secretFile: secret }), { token: 'sk-from-file', source: '.secrets/mineru.json' })
+  // env 只在文件缺失时兜底
+  assert.deepEqual(resolveToken({ env: { MINERU_TOKEN: 'sk-env' }, secretFile: join(dir, 'nope.json') }), { token: 'sk-env', source: 'env:MINERU_TOKEN' })
   assert.deepEqual(resolveToken({ env: {}, secretFile: secret }), { token: 'sk-from-file', source: '.secrets/mineru.json' })
 
   assert.throws(() => resolveToken({ env: {}, secretFile: join(dir, 'nope.json') }), (error) => {
@@ -189,6 +192,34 @@ test('完整链路：申请 → 上传（不带 Content-Type）→ 轮询 → �
   const payload = JSON.parse(created.body)
   assert.equal(payload.files[0].name, 'lab.pdf')
   assert.equal(payload.enable_formula, true)
+  assert.equal(payload.model_version, 'pipeline', '默认 pipeline（2026-10-22 跨工作台统一口径）')
+  assert.equal(result.modelVersion, 'pipeline', '结果里要回报实际用的模型，落 engine 用')
+})
+
+test('模型选择：默认 pipeline，只有"模型参数不被接受"才值得退回 vlm', () => {
+  assert.equal(MINERU_MODEL_DEFAULT, 'pipeline')
+  assert.equal(MINERU_MODEL_FALLBACK, 'vlm')
+  // 接口明确说模型/版本/参数不认 → 可以退
+  assert.equal(modelFallbackWorthy({ code: 'API_ERROR', message: 'unsupported model_version' }), true)
+  assert.equal(modelFallbackWorthy({ code: 'BAD_INPUT', message: '模型 参数 错误' }), true)
+  // 文件本身解析失败 / 没 Token / 超时 → 换模型没意义，别多花一次额度
+  assert.equal(modelFallbackWorthy({ code: 'TASK_FAILED', message: 'file size is less than 30B' }), false)
+  assert.equal(modelFallbackWorthy({ code: 'NO_TOKEN', message: '没有 MinerU Token' }), false)
+  assert.equal(modelFallbackWorthy({ code: 'TIMEOUT', message: '等待超时' }), false)
+  assert.equal(modelFallbackWorthy({ code: 'API_ERROR', message: 'quota exceeded' }), false)
+  assert.equal(modelFallbackWorthy(null), false)
+})
+
+test('显式传 modelVersion 时按传入值提交，不被默认值覆盖', async () => {
+  const zip = buildZip([{ name: 'full.md', data: MD }])
+  const { fetchImpl, calls } = fakeMineru({ zipBuffer: zip })
+  const client = new MineruClient({ token: 'sk-test', fetchImpl })
+  const result = await client.parse({
+    bytes: Buffer.from('%PDF-1.4 fake'), filename: 'lab.pdf', intervalMs: 1, modelVersion: MINERU_MODEL_FALLBACK,
+  })
+  const payload = JSON.parse(calls.find((c) => c.url.endsWith('/file-urls/batch')).body)
+  assert.equal(payload.model_version, 'vlm')
+  assert.equal(result.modelVersion, 'vlm')
 })
 
 test('done 后没有 extract_progress 时，页数从 content_list 的 page_idx 上限推；都没有就 null', async () => {

@@ -82,7 +82,7 @@ test('指标卡只取最新一点，delta 是"最新 − 前一次"（同方法�
 test('没有数据的指标：hasData 为 false，latest 为空，不补 0', () => {
   const { store, subject } = setup()
   const cards = metricCards(store, subject.id)
-  assert.equal(cards.length, 18)
+  assert.equal(cards.length, 22)
   for (const c of cards) {
     assert.equal(c.hasData, false)
     assert.equal(c.latest, null)

@@ -1,0 +1,341 @@
+{
+  "document": {
+    "id": "caca-cbcs-2025",
+    "short": "CBCS 2025",
+    "org": "CACA-CBCS / CMA-CSO-BO",
+    "version": "2025 精要本",
+    "published": "2024-12-22",
+    "sections": "9.5 术后随访频率（P208）· 9.6 术后随访检查项目（P209）",
+    "disclaimer": "这是指南写的随访节奏，不是工作台给你排的复查计划。工作台不替你决定复查时间，也不发提醒。",
+    "sha256": "dc4ba4d857491fb7a829b7e4bb84f28f7594b432cb8fd85e05aafb3f421a4b37"
+  },
+  "phases": [
+    {
+      "id": "y0_2",
+      "label": "术后 2 年内",
+      "fromMonths": 0,
+      "toMonths": 24,
+      "intervalMonths": 3,
+      "page": 208,
+      "table": "表 9.5",
+      "quote": "术后 2 年内：每 3 个月随访 1 次"
+    },
+    {
+      "id": "y3_5",
+      "label": "术后第 3–5 年",
+      "fromMonths": 24,
+      "toMonths": 60,
+      "intervalMonths": 6,
+      "page": 208,
+      "table": "表 9.5",
+      "quote": "术后第 3–5 年：每 6 个月随访 1 次"
+    },
+    {
+      "id": "y5p",
+      "label": "术后 5 年以上",
+      "fromMonths": 60,
+      "toMonths": null,
+      "intervalMonths": 12,
+      "page": 208,
+      "table": "表 9.5",
+      "quote": "术后 >5 年：每年随访 1 次"
+    }
+  ],
+  "relax": {
+    "page": 208,
+    "note": "注 b",
+    "intervalMonths": 6,
+    "appliesTo": [
+      "0 期",
+      "pT1micN0",
+      "部分预后良好的病理类型",
+      "部分 I 期"
+    ],
+    "quote": "对于 0 期、pT1micN0，以及部分预后良好的病理类型或 I 期患者，可酌情延长随访时间间隔，如 2 年内每 6 个月随访一次，第 3 年后每年 1 次随访",
+    "disclaimer": "原文是「可酌情」，工作台不自动套用，也不会因此把主节奏改成 6 个月。"
+  },
+  "checks": [
+    {
+      "id": "history",
+      "group": "routine",
+      "name": "病史采集",
+      "who": "所有人群",
+      "freq": {
+        "kind": "phase"
+      },
+      "freqText": "根据术后随访频率",
+      "page": 209,
+      "table": "表 9.6",
+      "note": "注 a：病史采集推荐包含患者报告的结局指标量表（ePRO），即直接来自患者的报告。"
+    },
+    {
+      "id": "exam",
+      "group": "routine",
+      "name": "体格检查",
+      "who": "所有人群",
+      "freq": {
+        "kind": "phase"
+      },
+      "freqText": "根据术后随访频率",
+      "page": 209,
+      "table": "表 9.6"
+    },
+    {
+      "id": "ultrasound",
+      "group": "routine",
+      "name": "超声（肝脏、乳腺区域及淋巴引流区）",
+      "who": "所有人群",
+      "freq": {
+        "kind": "phase"
+      },
+      "freqText": "根据术后随访频率",
+      "page": 209,
+      "table": "表 9.6",
+      "why": "部位推荐：肝脏、乳腺区域及淋巴引流区"
+    },
+    {
+      "id": "lab",
+      "group": "routine",
+      "name": "实验室检查（血常规、肝肾功能、血脂、血糖、CA153/CEA）",
+      "who": "所有人群",
+      "freq": {
+        "kind": "phase"
+      },
+      "freqText": "根据术后随访频率",
+      "page": 209,
+      "table": "表 9.6",
+      "note": "注 b：双膦酸盐使用期间建议增加监测血清电解质；注 c：第三代 AI、卵巢功能抑制剂期间建议增加 25-羟基维生素 D、骨钙素等骨代谢指标。"
+    },
+    {
+      "id": "mammo",
+      "group": "routine",
+      "name": "乳腺 X 线摄片",
+      "who": "所有人群（双乳切除者除外）",
+      "freq": {
+        "kind": "months",
+        "months": 12
+      },
+      "freqText": "每 12 个月检查 1 次或必要时",
+      "page": 209,
+      "table": "表 9.6"
+    },
+    {
+      "id": "chest_ct",
+      "group": "special",
+      "name": "胸部 CT",
+      "who": "所有人群",
+      "freq": {
+        "kind": "months",
+        "months": 12
+      },
+      "freqText": "每 12 个月检查 1 次或必要时",
+      "page": 209,
+      "table": "表 9.6",
+      "why": "原文括号：分期偏晚者可每 6 个月"
+    },
+    {
+      "id": "gyn",
+      "group": "special",
+      "name": "妇科超声 / 妇科检查",
+      "who": "服用 SERM 类药物且子宫/卵巢完整",
+      "freq": {
+        "kind": "phase"
+      },
+      "freqText": "根据术后随访频率",
+      "page": 209,
+      "table": "表 9.6",
+      "when": {
+        "mode": "any",
+        "tags": [
+          "serm"
+        ]
+      }
+    },
+    {
+      "id": "bmd",
+      "group": "special",
+      "name": "骨密度检测",
+      "who": "绝经前使用 LHRH-a；绝经后使用 AI",
+      "freq": {
+        "kind": "range",
+        "months": [
+          6,
+          12
+        ]
+      },
+      "freqText": "每 6–12 个月检查 1 次",
+      "page": 209,
+      "table": "表 9.6",
+      "when": {
+        "mode": "any",
+        "tags": [
+          "ai",
+          "lhrh"
+        ]
+      }
+    },
+    {
+      "id": "bone_scan",
+      "group": "special",
+      "name": "骨扫描",
+      "who": "淋巴结转移 >4 枚或怀疑骨转移",
+      "freq": {
+        "kind": "months",
+        "months": 12
+      },
+      "freqText": "每 12 个月检查 1 次或必要时",
+      "page": 209,
+      "table": "表 9.6",
+      "when": {
+        "mode": "any",
+        "tags": [
+          "node_gt4"
+        ]
+      },
+      "unavailable": "本地没有「淋巴结转移枚数」的结构化字段，这条无法按你的记录自动匹配"
+    },
+    {
+      "id": "brain",
+      "group": "special",
+      "name": "脑部 CT 或 MRI",
+      "who": "淋巴结转移 >4 枚或怀疑脑转移",
+      "freq": {
+        "kind": "months",
+        "months": 12
+      },
+      "freqText": "每 12 个月检查 1 次或必要时",
+      "page": 209,
+      "table": "表 9.6",
+      "when": {
+        "mode": "any",
+        "tags": [
+          "node_gt4"
+        ]
+      },
+      "unavailable": "本地没有「淋巴结转移枚数」的结构化字段，这条无法按你的记录自动匹配"
+    },
+    {
+      "id": "cardiac",
+      "group": "special",
+      "name": "心超、心电图、心肌酶谱",
+      "who": "使用蒽环类、抗 HER2 治疗、免疫检查点抑制剂等药物",
+      "freq": {
+        "kind": "months",
+        "months": 3
+      },
+      "freqText": "使用期间每 3 个月检查 1 次或必要时",
+      "page": 209,
+      "table": "表 9.6",
+      "when": {
+        "mode": "any",
+        "tags": [
+          "anthracycline",
+          "antiher2",
+          "ici"
+        ]
+      }
+    },
+    {
+      "id": "ici_lab",
+      "group": "special",
+      "name": "尿常规、甲状腺功能、肾上腺功能",
+      "who": "使用免疫检查点抑制剂类药物",
+      "freq": {
+        "kind": "per_cycle",
+        "cycles": [
+          1,
+          2
+        ]
+      },
+      "freqText": "使用期间每 1–2 疗程检查 1 次或必要时",
+      "page": 209,
+      "table": "表 9.6（续表）",
+      "when": {
+        "mode": "any",
+        "tags": [
+          "ici"
+        ]
+      }
+    },
+    {
+      "id": "breast_mri",
+      "group": "special",
+      "name": "乳腺 MRI",
+      "who": "接受保乳手术患者，或其他影像学不能明确乳腺部位病灶时",
+      "freq": {
+        "kind": "months",
+        "months": 12
+      },
+      "freqText": "每 12 个月检查 1 次或必要时",
+      "page": 209,
+      "table": "表 9.6（续表）",
+      "when": {
+        "mode": "any",
+        "tags": [
+          "breast_conserving"
+        ]
+      }
+    },
+    {
+      "id": "abd_mri",
+      "group": "special",
+      "name": "腹部或盆腔 MRI",
+      "who": "需要对特定器官监测或明确（如肝转移、BRCA 突变者监测卵巢）",
+      "freq": {
+        "kind": "when_needed"
+      },
+      "freqText": "认为必要时",
+      "page": 209,
+      "table": "表 9.6（续表）"
+    },
+    {
+      "id": "pet",
+      "group": "special",
+      "name": "PET-CT",
+      "who": "需要排查全身转移病灶或明确转移范围时",
+      "freq": {
+        "kind": "when_needed"
+      },
+      "freqText": "认为必要时",
+      "page": 209,
+      "table": "表 9.6（续表）"
+    }
+  ],
+  "tagRules": {
+    "anthracycline": {
+      "label": "蒽环类",
+      "pattern": "蒽环|表柔比星|多柔比星|吡柔比星|阿霉素|米托蒽醌|\\b(?:EC|AC|FEC|TAC)\\b",
+      "note": "按治疗名称里的药名匹配；只写「化疗」两字时匹配不到"
+    },
+    "antiher2": {
+      "label": "抗 HER2 治疗",
+      "pattern": "曲妥珠|帕妥珠|吡咯替尼|拉帕替尼|奈拉替尼|妥珠单抗|T-DM1|T-DXd|恩美曲妥珠|德曲妥珠",
+      "note": "同上"
+    },
+    "ici": {
+      "label": "免疫检查点抑制剂",
+      "pattern": "帕博利珠|纳武利尤|信迪利|卡瑞利珠|替雷利珠|特瑞普利|阿替利珠|度伐利尤|免疫检查点|PD-1|PD-L1",
+      "note": "同上"
+    },
+    "ai": {
+      "label": "芳香化酶抑制剂",
+      "pattern": "来曲唑|阿那曲唑|依西美坦|芳香化酶",
+      "note": "同上"
+    },
+    "lhrh": {
+      "label": "卵巢功能抑制（LHRH-a）",
+      "pattern": "戈舍瑞林|亮丙瑞林|曲普瑞林|LHRH|OFS|卵巢功能抑制",
+      "note": "同上"
+    },
+    "serm": {
+      "label": "SERM（他莫昔芬等）",
+      "pattern": "他莫昔芬|托瑞米芬",
+      "note": "同上"
+    },
+    "breast_conserving": {
+      "label": "保乳手术",
+      "pattern": "保乳",
+      "note": "看手术名称里有没有「保乳」"
+    }
+  }
+}

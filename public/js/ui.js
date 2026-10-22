@@ -311,21 +311,49 @@ export function gradeBadge(grade, ctcaeVersion = '', extraClass = '') {
  */
 export function gradeLine(ctcae, ctcaeVersion = '', extra = '') {
   const parts = []
+  const v = ctcaeVersion ? `CTCAE v${esc(ctcaeVersion)}` : 'CTCAE'
   if (ctcae?.grade) {
-    const v = ctcaeVersion ? `CTCAE v${esc(ctcaeVersion)}` : 'CTCAE'
-    parts.push(`${v} ${ctcae.grade} 级${ctcae.band ? ` · ${esc(ctcae.band)}` : ''}${ctcae.approx ? ' · 按通用下限' : ''} · 对照不是诊断`)
+    // ×ULN 型：区间后面再给实测倍数，读的人能自己复核除法
+    const ratio = ctcae.ratio ? ` · 实测 ${fmtNum(ctcae.ratio, 1)}×ULN` : ''
+    parts.push(`${v} ${ctcae.grade} 级${ctcae.band ? ` · ${esc(ctcae.band)}` : ''}${ratio}${ctcae.approx ? ' · 按通用下限' : ''} · 对照不是诊断`)
+  } else if (ctcae?.needsUln) {
+    parts.push(`${v} 需化验单参考上限（×ULN 分级，不猜倍数）`)
+  } else if (ctcae?.needsUnit) {
+    parts.push(`${v} 单位待核对`)
   }
   if (extra) parts.push(esc(extra))
   return parts.length ? `<span class="grade-line">${parts.join(' · ')}</span>` : ''
 }
 
-export function metricCard(card, flipped, ctcaeVersion = '') {
+/**
+ * 指南口径一行（只出现在卡片背面）。
+ *
+ * 与 `gradeLine` 的关系：**并列，不替代**。主口径是 CTCAE v5.0 的级，这一行给的是
+ * 同一份记录在中国指南里的位置（或"需要化验单下限才能对照"）。两套不一致时不取严，
+ * 也不写"以哪个为准"——判断留给读者与治疗团队。完整一句话放 title，卡片里恒一行。
+ */
+export function guidelineLine(cbcs, glMeta = null) {
+  if (!cbcs) return ''
+  const main = cbcs.kind === 'grade'
+    ? `指南 ${cbcs.grade} 级`
+    : cbcs.kind === 'needs-lln' ? '指南 需化验下限' : `指南 ${cbcs.short ?? '对照'}`
+  const doc = glMeta?.short ? `${glMeta.short} · ` : ''
+  return `<span class="gl-line" title="${esc(`${cbcs.text}（${doc}P${cbcs.page}）`)}">${esc(main)} · P${esc(cbcs.page)}</span>`
+}
+
+export function metricCard(card, flipped, ctcaeVersion = '', glMeta = null) {
   const color = card.color
   const latest = card.latest
   const badge = card.ctcae?.grade ? gradeBadge(card.ctcae.grade, ctcaeVersion) : ''
-  const backGrade = card.ctcae?.grade || card.breakCount
+  // 缺参考上限的 ×ULN 项：给一个中性提示，而不是留白（留白等于"没有异常"）
+  const needChip = !card.ctcae?.grade && card.ctcae?.needsUln
+    ? `<span class="grade-chip need" title="${esc(card.ctcae.note ?? '')}">需参考上限</span>` : ''
+  const backGrade = card.ctcae?.grade || card.ctcae?.needsUln || card.ctcae?.needsUnit || card.breakCount
     ? gradeLine(card.ctcae, ctcaeVersion, card.breakCount ? `${card.breakCount} 处方法变更断线` : '')
     : ''
+  // 指南口径只在**背面**并列一行（用户 2026-10-22 定：主口径仍 CTCAE 5.0）。
+  // 卡片高 194px 且 overflow:hidden，所以这里恒一行、超长省略，完整一句在 title 里。
+  const glLine = guidelineLine(card.cbcs, glMeta)
   if (!latest) {
     return `<button class="mcard" data-action="flip" data-code="${card.code}" aria-pressed="false" aria-label="${esc(card.name)}，还没有记录">
       <span class="mcard-inner">
@@ -349,11 +377,13 @@ export function metricCard(card, flipped, ctcaeVersion = '') {
        ${sparkline(recent, color, card.dec)}
        <span class="spark-labels"><span>${longDate(recent[0].date)}</span><span>${longDate(recent.at(-1).date)}</span></span>
        ${backGrade}
+       ${glLine}
        <span class="foot">仅回顾已记录的值 · 点击返回</span>`
     : `<span class="cat"><i style="background:${color}"></i>${esc(card.categoryLabel)}</span>
        <span class="name">${esc(card.name)}</span>
        <span class="na">只有 1 次记录，暂不连线。<br>再记录一次后显示趋势。</span>
        ${backGrade}
+       ${glLine}
        <span class="foot">${longDate(latest.date)} · 点击返回</span>`
   return `<button class="mcard" data-action="flip" data-code="${card.code}" aria-pressed="${flipped ? 'true' : 'false'}" aria-label="${esc(card.name)}，${fmtNum(latest.value, card.dec)} ${esc(unitText(card.unit))}，${longDate(latest.date)}${card.ctcae?.grade ? `，对照 CTCAE ${card.ctcae.grade} 级` : ''}；${flipped ? '点击返回摘要' : `点击翻转查看最近 ${recent.length} 次记录`}">
     <span class="mcard-inner">
@@ -362,7 +392,7 @@ export function metricCard(card, flipped, ctcaeVersion = '') {
         <span class="name">${esc(card.name)}</span>
         <span class="val">${fmtNum(latest.value, card.dec)}<small>${esc(unitText(card.unit))}</small></span>
         <span class="delta">${trend}</span>
-        ${badge ? `<span class="grade-slot" title="${esc(card.ctcae.band ?? '')}（${esc(card.ctcae.term ?? '')}）">${badge}</span>` : ''}
+        ${badge ? `<span class="grade-slot" title="${esc(card.ctcae.band ?? '')}（${esc(card.ctcae.term ?? '')}）">${badge}</span>` : needChip ? `<span class="grade-slot">${needChip}</span>` : ''}
         <span class="rec">共 ${card.count} 次记录${card.count > 1 ? ' · 点击翻转看趋势' : ''}</span>
         <span class="meta"><span>${longDate(latest.date)} · ${esc(latest.source ?? '本人记录')}</span><span class="hint">翻转 ↗</span></span>
       </span>

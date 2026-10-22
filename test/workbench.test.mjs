@@ -121,16 +121,16 @@ test('首次打开：建库、建档案、state 里 ready 为真且带阶段字�
   })
 });
 
-test('空库打开不报错：各项计数为 0，只保留 18 项字典骨架', async () => {
+test('空库打开不报错：各项计数为 0，只保留 22 项字典骨架', async () => {
   await withWorkbench(async ({ workbench }) => {
     const o = workbench.overview()
     assert.equal(o.documents.total, 0)
     assert.equal(o.arm.count, 0)
     assert.deepEqual(o.recent, [])
-    assert.equal(o.metrics.total, 18, '字典里有 18 项指标，但没有数据')
+    assert.equal(o.metrics.total, 22, '字典里有 22 项指标，但没有数据')
     assert.equal(o.metrics.withData, 0)
     const m = workbench.metrics()
-    assert.equal(m.series.length, 18)
+    assert.equal(m.series.length, 22)
     assert.ok(m.series.every((s) => s.points.length === 0), '没有数据就没有点，不补 0')
     assert.ok(m.cards.every((c) => c.hasData === false))
     assert.equal(workbench.draft().documents.length, 0)

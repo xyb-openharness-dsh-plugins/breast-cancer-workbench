@@ -176,6 +176,6 @@ npm run pack:check → 8 files, 264.3 kB, shasum 40374a49…
 | 布局 0.65 太窄 | 一图秀与六列表被压缩，横向滚动 | 已实测：34 视图 × 五档宽度页面级溢出 0；936 下「测量记录」卡 313px 放不下 417px 的表 → **该卡整行跨列**（实测后滚动归零）。仍待 M5 在真容器里复核 |
 | ECharts 离线加载 | `file://` 与容器内 CSP 失败 | 本地 vendor + 失败回退到手写 SVG；D26 待定 |
 | SQLite 迁移不可逆 | 改表丢数据 | 只增不改；每次迁移带 `down` 说明；G3 前冻结 |
-| MinerU 联网 | Token、限流、超时 | 客户端已实现并把四种失败做成明确错误码（`NO_TOKEN`/`UNAUTHORIZED`/`TIMEOUT`/`TASK_FAILED`）；**界面三态仍未做**。真实样本错读率未验证，所以候选永远要人工核对 |
+| MinerU 联网 | Token、限流、超时 | 客户端已实现并把四种失败做成明确错误码（`NO_TOKEN`/`UNAUTHORIZED`/`TIMEOUT`/`TASK_FAILED`）；界面三态已于 **v0.8.1** 落地（`public/js/parse-fault.js`，错误码→结论+下一步，见 [MINERU](MINERU.md) §5.1）。真实样本错读率未验证，所以候选永远要人工核对 |
 | 密钥泄漏 | Token 进 git 历史 | 只从 env 或 `.secrets/mineru.json` 读；`npm run check` 含密钥扫描；错误消息只给掩码 |
 | 医疗表述越界 | 出现"可能复发/建议治疗" | A18 全文检索纳入 `npm run check`，命中即失败 |

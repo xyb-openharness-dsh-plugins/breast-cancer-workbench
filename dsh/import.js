@@ -239,7 +239,7 @@ export class ImportService {
       })
 
       const inserted = this.store.withTransaction(() => {
-        this.finishParse(job.id, { engine: 'mineru' })
+        this.finishParse(job.id, { engine: `mineru:${result.modelVersion ?? 'default'}` })
         if (extracted.reportDate && !doc.report_date) {
           this.db.prepare('UPDATE document SET report_date = ? WHERE id = ?').run(extracted.reportDate, doc.id)
         }
@@ -269,6 +269,7 @@ export class ImportService {
         document: this.#document(documentId),
         batchId: result.batchId,
         pages: result.pages ?? null,
+        modelVersion: result.modelVersion ?? null,
         reportDate: extracted.reportDate,
         inserted,
         warnings: extracted.warnings,

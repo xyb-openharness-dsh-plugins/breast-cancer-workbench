@@ -61,11 +61,11 @@ test('0002 补的两列存在、可空、格式受 CHECK 约束', () => {
   store.close()
 })
 
-test('字典种子：18 项指标 + 3 个协议，重复执行不新增', () => {
+test('字典种子：22 项指标 + 3 个协议，重复执行不新增', () => {
   const { store } = fresh()
   const metrics = store.db.prepare('SELECT COUNT(*) AS n FROM metric_definition').get().n
   const protocols = store.db.prepare('SELECT COUNT(*) AS n FROM measure_protocol').get().n
-  assert.equal(metrics, 18)
+  assert.equal(metrics, 22)
   assert.equal(metrics, METRICS.length)
   assert.equal(protocols, PROTOCOLS.length)
   assert.equal(seedDictionary(store.db).inserted, 0, '重复写入必须是 0 行')
