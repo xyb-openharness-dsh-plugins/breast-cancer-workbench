@@ -5,8 +5,8 @@
 - **默认解析模型 vlm → pipeline**（`MINERU_MODEL_DEFAULT`），接口拒该参数时才回退 `vlm`。代价照旧：空格分列的检验单 PDF 用 pipeline 会把表压平丢列，核对时留意。
 - **Token 优先级改为文件优先**：显式传入 > `.secrets/mineru.json`（唯一持久来源）> `MINERU_TOKEN`（仅在文件缺失时兜底）。此前是 env 优先，一条遗留的过期 env 会让界面里新存的 Token 长期不生效，表现为「换了 Token 还是 401」。
 - **`.secrets/mineru.json` 定为唯一本地密钥文件**，不再读 `~/.mineru/config.yaml`；`docs/MINERU.md`、`docs/DEMO-CHECKLIST.md` 口径同步，设置页文案一并改写。
-- **未做**：Flash 通道（`POST /api/v1/agent/parse/file`）全家族 0 处实现，「轻量模式，结果可能不准」目前没有落点，文档已标注为规划项。
-- 测试：`npm test` 222/222 全绿。
+- **Flash 通道正式作废**：用户定「flash 不用了」。`docs/DEMO-CHECKLIST.md` / `UI-DESIGN.md` / `PARITY.md` 里的 Flash 条款删除，改为「认证失败 → 报错 + 申请链接 + 来源掩码，不降级」。
+- 测试：`npm test` 233/233 全绿。
 
 ## 0.12.0 — 2026-10-22（分级扩项 G3：ALT / AST / ALP / 总胆红素 / 肌酐按这张化验单的参考上限对照，QTc 按绝对值到 3 级）
 
