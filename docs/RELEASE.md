@@ -31,7 +31,48 @@
 
 所以收尾的判据是三件事，不是"能不能发"：① 用当前 `0.12.0` 的 tgz 重装，把 V1/V2/V3 重跑一遍（容器内能看到 `v0.12.0`、业务页能开、数据落在所选目录）；② 打 `v0.12.0` tag；③ 市场投稿。
 
-**已知的一个坑**：profile 里的依赖指向 `file:/…/pinkypal-dsh-breast-cancer-workbench-0.6.1.tgz`（0.5.0–0.6.1 六个 tgz 还留在仓库根，`*.tgz` 已被 `.gitignore` 忽略）。重装要重新 `npm pack` 再 `pnpm add -w <新 tgz>`；specifier 是绝对路径，目录一挪或文件一删，`pnpm` 会因找不到 tarball 直接失败。
+**已知的一个坑**：profile 里记的是 `file:<绝对路径>.tgz`，不是版本号。装完 0.12.0 后这个 specifier 指向仓库根的 `pinkypal-dsh-breast-cancer-workbench-0.12.0.tgz`——**这个文件一旦删掉，profile 就装不回去了**（`pnpm` 会因找不到 tarball 直接失败）。仓库根现在还留着 0.5.0–0.12.0 八个 tgz（`*.tgz` 已 `.gitignore`）。要么把当前版本的 tgz 归档到一个固定目录再装，要么装完立刻把 tgz 挪到不会被清理的地方。
+
+### 0.1 0.12.0 装机记录（2026-10-22）
+
+已做（有输出可复核）：
+
+| 步骤 | 命令 / 证据 | 结果 |
+| --- | --- | --- |
+| 打包 | `npm pack` | `pinkypal-dsh-breast-cancer-workbench-0.12.0.tgz`，59 files / 3.4 MB，`tar tzf` 里 `guidebooks` 计数 0 |
+| 装包 | `pnpm@10.15.0 --dir <web profile> add -w <tgz>` | `+1`，Done |
+| 依赖登记 | profile `package.json` | `file:/…-0.12.0.tgz` |
+| bundles | profile `dsh.profile.bundles` | 含 `@pinkypal-dsh/breast-cancer-workbench` |
+| 落地版本 | `node_modules/…/package.json` | `0.12.0` |
+| 客户端平台 | 同上 `dsh.client.platform` | `web` |
+| 入口可加载 | `node -e "import('./dsh/index.js')"` | `name = breast-cancer-workbench`，`inject = ["webServer","connection"]` |
+| 随包数据 | 安装目录 `assets/reference/guideline/` | `cadence.json` / `refs.json` 都在 |
+
+**未做，需重启宿主**（当前 DSH Desktop 进程是 2026-10-20 启动的，加载的是 0.6.1）：
+
+1. **V2**：容器内页面看到 `v0.12.0`（顶栏、页脚、关于）；
+2. **V3**：业务页能开、指标检测页出现「随访节奏」卡、ALT 带参考上限时给级、`errs: []`；
+3. 数据落在所选目录（不静默建目录、拒根目录/主目录/桌面）。
+
+重启后的核对命令（不用再猜）：
+
+```bash
+# 版本：容器内页面右上角与页脚应显示 v0.12.0
+# 宿主状态：确认加载的是新包
+grep -c "0.12.0" "$HOME/Library/Application Support/dsh-desktop/harness/logs/"*.log | tail -3
+```
+
+### 0.2 一个待你拍板的身份问题
+
+`package.json` 的 `repository` 指向 **`xyb-openharness-dsh-plugins/xfb-workbench`**，而本仓代码与提交都在 **`xyb-openharness-dsh-plugins/breast-cancer-workbench`**——这是两个真实存在的私仓（`gh repo view` 分别可查，`xfb-workbench` 的 main 是 `b63b7e7`，与本仓不同）。
+
+影响：Desktop 的工作台身份、市场派生的 `owner/repo`、`register()` 里的 repository 字段全都取 `xfb-workbench`。装机后 `desktop-workbenches/state.json` 的 `added` 里也确实记的是 `xyb-openharness-dsh-plugins/xfb-workbench`。
+
+两个选项，改之前都不动手：
+
+- **A 保持 `xfb-workbench`**：承认它是面向用户的门面仓，本仓是开发仓。代价是市场入口指向的仓库里没有这份代码，用户点「查看源码」会看到另一份。
+- **B 改成 `breast-cancer-workbench`**：身份与实际代码一致。代价是 `state.json` 里 `added` 的旧条目会失配，装过的人会看到"同一个工作台出现两次"，需要手工清一次 `added`。
+
 
 ### 本机能力已探测（可直接复用，不必再猜）
 
