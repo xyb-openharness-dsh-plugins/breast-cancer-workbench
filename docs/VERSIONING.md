@@ -101,6 +101,8 @@ npm run check             # 一条命令：版本同步 → 语法 → 文案红
 
 `package.json` 的 `version`、`lib/version.js` 的 `version`、`VERSION` 三者必须同时相同；M0 起 `npm run check` 会把这条钉死。
 
+`build:version --check` **不比对 `commit` 那一行**：生成物一提交，HEAD 就前进一格，这一行永远落后（旧注释里写"提交后必然滞后一格"）。所以校验分两步——其余内容必须逐字一致；`commit` 只核对"它是本仓库的真实历史提交"（`merge-base --is-ancestor`）。**滞后放行，编造拒绝**：把哈希改成不存在的值会被判失败。这条不写死，`npm run check` 在每次提交后都会假红一次，久了就没人看了。
+
 输出示例：
 
 ```

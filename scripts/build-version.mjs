@@ -12,7 +12,7 @@
  * 渠道由环境变量 PINKYPAL_CHANNEL 指定，三选一：prototype / beta / stable，默认 prototype。
  * 规则见 docs/VERSIONING.md §4。
  */
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -49,6 +49,11 @@ function git(args) {
   }
 }
 
+/** git 的"是否成功"要用退出码判断：--is-ancestor 成功时没有输出，不能靠字符串区分。 */
+function gitOk(args) {
+  return spawnSync('git', ['-C', root, ...args], { stdio: 'ignore' }).status === 0
+}
+
 const commit = git(['rev-parse', '--short', 'HEAD']) || 'local'
 const build = git(['log', '-1', '--format=%cs']) || 'local'
 
@@ -78,11 +83,25 @@ if (checkOnly) {
     console.error('✗ 缺少 lib/version.js，请先运行 npm run build:version')
     process.exit(1)
   }
-  if (readFileSync(target, 'utf8') !== generated) {
+  const actual = readFileSync(target, 'utf8')
+  // `commit` 记的是"生成时的 HEAD"。生成物一提交，HEAD 就前进一格，这一行必然落后。
+  // 所以比对时忽略它，单独验"它是不是本仓库的真实历史提交"——滞后可以，编造不行。
+  const stripCommit = (s) => s.replace(/^export const commit = '.*'$/m, "export const commit = ''")
+  if (stripCommit(actual) !== stripCommit(generated)) {
     console.error('✗ lib/version.js 与 VERSION 不同步，请运行 npm run build:version')
     process.exit(1)
   }
-  console.log(`✓ lib/version.js 与 VERSION 同步：v${raw}（build ${build} · ${channel}）`)
+  const recorded = /^export const commit = '(.*)'$/m.exec(actual)?.[1] ?? ''
+  if (recorded !== commit && recorded !== 'local') {
+    const known = gitOk(['merge-base', '--is-ancestor', recorded, 'HEAD'])
+    const exists = gitOk(['cat-file', '-e', `${recorded}^{commit}`])
+    if (!exists || !known) {
+      console.error(`✗ lib/version.js 里的 commit ${recorded} 不是本仓库历史提交，请重新生成`)
+      process.exit(1)
+    }
+  }
+  const lag = recorded === commit ? '' : `，commit ${recorded} 滞后于 HEAD`
+  console.log(`✓ lib/version.js 与 VERSION 同步：v${raw}（build ${build} · ${channel}${lag}）`)
   process.exit(0)
 }
 
