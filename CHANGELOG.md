@@ -5,7 +5,7 @@
 - **指南原件可点（§2.5）**：疾病概要 evidence 表的「原件」列不再只写文字。已取得原件的行给 `https://` 链接，未取得原件的行给二次来源链接；确实拿不到的如实标「未取得原件」并注明原因，不编 URL。
 - **看板状态卡（§2.6）**：首卡四件——卡头 eyebrow、按锚点日派生的大字天数、现状行（阶段+状态+下次事项）、出口按钮排（当前阶段核心页 + 疾病概要浮窗）；无锚点数据时整卡显示「待初始化」。
 - **浮窗排版（§4.3）**：同步 starter 排版修复——正文与列表不再限制 `max-width:68ch`，右边界与表格/小标题对齐；分组列表缩进 20px；表格 `min-width:640px`，窄容器横向滚动而不是压缩列宽。
-- **链接断言**：`scripts/check-primer-links.mjs` 纳入 `npm run check`，缺链接、非 https、仅域名首页都会在 check 阶段失败。
+- **链接断言**：`scripts/check-primer-links.mjs` 逐条验可达（`npm run check:primer-links`）；它要联网，所以**不在** `npm run check` 链里，避免离线/CI 假红。离线那半截由 `test/primer-ui.test.mjs` 守住（原件列必须带 `https://`、两份数据同源）；`build-primer-data --check` 已进 check 链，防 public 与原型漂移。
 - **app 侧同源**：`public/primer-data.js` 由 `scripts/build-primer-data.mjs` 从 `prototypes/v0.4/primer-data.js` 生成，`test/primer-ui.test.mjs` 守住三条契约——两份数据同源、指南表「原件」列必有 https 链接、dashboard 两条分支都把状态卡放首卡位且天数由 `today()` 派生（不写死日期）。
 - 测试：`npm test` 239/239 全绿；`prototypes/v0.4/index.html` 探针 9/9、指南链接 9/9 可达。
 
