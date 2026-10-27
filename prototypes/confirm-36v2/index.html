@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>36 号 v2 预览 · 看板状态卡 + 指南可点（小粉宝）</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23983654'/%3E%3Ctext x='16' y='23' font-size='18' font-family='PingFang SC,sans-serif' font-weight='700' fill='%23fff' text-anchor='middle'%3E%3F%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="primer.css">
+<style>
+  :root{
+    --paper:#fbf8f9; --surface:#fff;
+    --ink:#332a30; --ink-2:#594c54; --muted:#7d6f77;
+    --line:#ecdfe4; --line-strong:#dcc9d1;
+    --pink:#ffa1bd; --pink-soft:#fff0f5; --pink-deep:#983654;
+    --rose:#c2416b; --orange:#ff7800; --action:#a8410a;
+    --ok:#2f7d6b; --warn:#a16a10; --warn-bg:#fff8ea;
+    --radius:16px; --radius-sm:10px;
+    --shadow:0 1px 2px rgba(72,40,55,.04),0 10px 30px rgba(72,40,55,.06);
+    --tz:1;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;color:var(--ink);background:var(--paper);
+    font:15px/1.68 -apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    font-variant-numeric:tabular-nums}
+  button{font:inherit;color:inherit;cursor:pointer}
+  a{color:var(--pink-deep)}
+  :focus-visible{outline:3px solid var(--pink-deep);outline-offset:2px}
+  .demo-bar{background:#4a3542;color:#fff3f8;padding:6px 22px;font-size:12px;display:flex;gap:16px;justify-content:space-between}
+  .demo-bar b{font-weight:600}
+  .topbar{display:flex;align-items:center;gap:14px;padding:10px 20px;background:var(--surface);
+    border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+  .brand{display:flex;align-items:center;gap:10px}
+  .brand .mark{width:34px;height:34px;border-radius:10px;background:var(--pink-soft);color:var(--pink-deep);
+    display:grid;place-items:center;font-weight:700;border:1px solid var(--line)}
+  .brand strong{font-size:15.5px}
+  .brand span{display:block;font-size:11.5px;color:var(--muted);letter-spacing:.4px}
+  .crumbs{color:var(--muted);font-size:12.5px;margin-left:6px}
+  .crumbs b{color:var(--ink-2)}
+  .top-actions{display:flex;align-items:center;gap:8px;margin-left:auto}
+  .chip{min-height:34px;padding:0 12px;border:1px solid var(--line);background:#fff;border-radius:9px;font-size:12.5px}
+  .chip:hover{background:var(--pink-soft);border-color:var(--line-strong)}
+  main{max-width:960px;margin:0 auto;padding:20px 18px 90px}
+  h1{font-size:24px;margin:0 0 6px;letter-spacing:-.4px}
+  .lead{color:var(--ink-2);margin:0 0 16px;max-width:72ch}
+  .eyebrow{color:var(--pink-deep);font-size:11px;letter-spacing:1.4px;font-weight:600;text-transform:uppercase}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;box-shadow:var(--shadow);margin:0 0 16px}
+  .card > h2{font-size:15px;margin:0 0 8px}
+
+  /* ---------- §2.6 看板状态卡 ---------- */
+  .sc{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);
+    padding:16px 20px 14px;margin:0 0 8px;position:relative;overflow:hidden}
+  .sc::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:linear-gradient(180deg,var(--pink),var(--rose))}
+  .sc-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+  .sc-eyebrow{font-size:11px;letter-spacing:1.3px;color:var(--pink-deep);font-weight:600;text-transform:uppercase}
+  .sc-tag{font-size:11px;padding:1px 8px;border-radius:999px;background:var(--pink-soft);color:var(--pink-deep);border:1px solid var(--line)}
+  .sc-main{display:grid;grid-template-columns:minmax(0,auto) minmax(0,1fr);gap:18px 26px;align-items:center}
+  .sc-day{font-size:28px;line-height:1.15;font-weight:600;color:var(--rose);letter-spacing:-.6px;white-space:nowrap}
+  .sc-day small{display:block;font-size:11px;font-weight:500;letter-spacing:.6px;color:var(--muted);margin-top:4px}
+  .sc-now{min-width:0}
+  .sc-stage{font-size:15px;font-weight:600;margin:0 0 3px;color:var(--ink)}
+  .sc-state{margin:0 0 3px;font-size:13px;color:var(--ink-2)}
+  .sc-next{margin:0;font-size:13px;color:var(--ink-2)}
+  .sc-next b{color:var(--ink)}
+  .sc-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;padding-top:12px;border-top:1px dashed var(--line)}
+  .btn-primary{min-height:40px;padding:0 15px;border-radius:var(--radius-sm);border:1px solid var(--rose);
+    background:var(--rose);color:#fff;font-size:13.5px;font-weight:600}
+  .btn-primary:hover{filter:brightness(.94)}
+  .btn-ghost{min-height:40px;padding:0 15px;border-radius:var(--radius-sm);border:1px solid var(--line-strong);
+    background:#fff;color:var(--pink-deep);font-size:13.5px;font-weight:600}
+  .btn-ghost:hover{background:var(--pink-soft)}
+  .sc-foot{margin:10px 0 0;font-size:11.5px;color:var(--muted);line-height:1.6}
+  .sc-empty .sc-day{color:var(--muted)}
+  .sc-empty .sc-stage{color:var(--muted);font-weight:600}
+
+  /* ---------- 待定项 ---------- */
+  .decide{border-left:3px solid var(--warn);background:var(--warn-bg)}
+  .decide h2{color:var(--warn)}
+  .decide ol{margin:8px 0 0;padding-left:20px}
+  .decide li{margin-bottom:10px;font-size:13.5px;color:var(--ink-2);line-height:1.7}
+  .decide li b{color:var(--ink)}
+  .mini{display:grid;gap:6px;margin:8px 0 0;font-size:12.5px}
+  .mini-row{display:flex;gap:10px;align-items:baseline;padding:6px 10px;background:#fff;border:1px solid var(--line);border-radius:9px}
+  .mini-row span:first-child{color:var(--muted);min-width:52px}
+  .hint{font-size:12px;color:var(--muted);margin:6px 0 0}
+  .fill{height:64px;border:1px dashed var(--line-strong);border-radius:12px;margin:0 0 12px;background:
+    repeating-linear-gradient(135deg,#fff,#fff 10px,#fdf7f9 10px,#fdf7f9 20px)}
+  @media (max-width:720px){
+    .sc-main{grid-template-columns:1fr;gap:10px}
+    main{padding:16px 14px 80px}
+  }
+</style>
+</head>
+<body>
+
+<div class="demo-bar">
+  <span><b>36 号 v2 预览</b> · 只演示新增的两块：看板状态卡（§2.6）与指南可点链接（§2.5）</span>
+  <span>模拟资料 · 非真实档案</span>
+</div>
+
+<header class="topbar">
+  <div class="brand">
+    <div class="mark" aria-hidden="true">粉</div>
+    <div><strong>小粉宝</strong><span>PinkyPal · 陪你慢慢来</span></div>
+  </div>
+  <div class="crumbs">工作台 <span>/</span> <b>看板</b></div>
+  <div class="top-actions">
+    <button class="chip" type="button">资料目录</button>
+    <button class="chip" type="button">设置</button>
+    <button class="chip" type="button">v0.3.1-preview</button>
+    <!-- 模块会自动接管这个按钮并补 aria-label；不写它也行，模块会自己插一个 -->
+    <button type="button" data-primer-open aria-haspopup="dialog" aria-controls="disease-primer" title="疾病概要">?</button>
+  </div>
+</header>
+
+<main id="main">
+  <span class="eyebrow">PINKYPAL / 看板</span>
+  <h1>这两块，是不是你要的样子</h1>
+  <p class="lead">
+    这一页只放 36 号 v2 的两处新增，用来在你点头之前看实物：<b>①看板首卡的状态卡</b>（四件结构，数字由锚点日算出来）；
+    <b>②「?」里的疾病概要</b>（指南表每一行都能点开，缺链接的当场标红）。
+    下面的档案数据是模拟的，结论一句都没有——判断不归这台工作台。
+  </p>
+
+  <!-- ============ 状态卡：有锚点 ============ -->
+  <section class="sc" aria-labelledby="sc-a-title" id="sc-a">
+    <div class="sc-head">
+      <span class="sc-eyebrow" id="sc-a-title">状态卡 · 距下一阶段（放疗定位）</span>
+      <span class="sc-tag">数字由锚点日推算</span>
+    </div>
+    <div class="sc-main">
+      <div class="sc-day" data-sc-day>第 <b>—</b> 天
+        <small data-sc-anchor>锚点日：待填</small>
+      </div>
+      <div class="sc-now">
+        <p class="sc-stage">术后辅助治疗 · 化疗已完成 4 程</p>
+        <p class="sc-state">当前阶段：已结束 · 恢复期</p>
+        <p class="sc-next">下次：<b>2026-11-03</b>（放疗定位）<span data-sc-until></span></p>
+      </div>
+    </div>
+    <div class="sc-actions">
+      <button class="btn-primary" type="button" data-demo="core">看术后上肢记录 →</button>
+      <button class="btn-ghost" type="button" data-primer-open>疾病概要：乳腺癌是什么？</button>
+    </div>
+    <p class="sc-foot">
+      卡头一行写「距哪个阶段」；大字是「第几天」，由锚点日算出来，不手填；现状行是阶段原文＋状态＋下次日期与事项；
+      出口按钮两个：进当前阶段核心页、开疾病概要。
+    </p>
+  </section>
+
+  <!-- ============ 状态卡：无锚点 ============ -->
+  <section class="sc sc-empty" aria-labelledby="sc-b-title" id="sc-b">
+    <div class="sc-head">
+      <span class="sc-eyebrow" id="sc-b-title">D+— 状态卡 · 距下一阶段（未定）</span>
+      <span class="sc-tag">没有锚点日时的样子</span>
+    </div>
+    <div class="sc-main">
+      <div class="sc-day">待初始化<small>锚点日：未填</small></div>
+      <div class="sc-now">
+        <p class="sc-stage">还不知道从哪天开始算</p>
+        <p class="sc-state">阶段名与下次日期都还没有来源，所以这里不猜、不填占位数字。</p>
+        <p class="sc-next">填好锚点日与当前阶段，这一张才会变成上面那样。</p>
+      </div>
+    </div>
+    <div class="sc-actions">
+      <button class="btn-primary" type="button" data-demo="init">三步初始化 →</button>
+      <button class="btn-ghost" type="button" data-primer-open>疾病概要：乳腺癌是什么？</button>
+    </div>
+    <p class="sc-foot">空态也是四件结构：卡头写 D+— 与「距下一阶段（未定）」、大字位置写「待初始化」而不是假天数、现状行说明为什么没有数字、出口按钮照给。</p>
+  </section>
+
+  <!-- ============ 待你定 ============ -->
+  <section class="card decide" aria-labelledby="decide-title">
+    <h2 id="decide-title">三件需要你点头的事</h2>
+    <ol>
+      <li>
+        <b>①「原件在本地、网上只有书目页」这一行，链接指哪儿？</b>
+        本页证据表里有 5 处红字（CACA-CBCS 2025 精要本 ×4、CSCO 2023 ×1）。<b>这不是数据写错，是审计在说「这 5 行还没给链接」</b>。
+        实测下来大部分能真解决：CACA 2024 / 2026 两版全文在中国癌症杂志官网有官方 PDF（返回 <code>application/pdf</code>）；
+        CSCO 2023 只有第三方转载 PDF。三种处理：
+        <div class="mini">
+          <div class="mini-row"><span>甲</span><span>能给官方 PDF 就给（最佳，已验证）；只能给书目页/转载件的，<b>单元格文字里明写是什么</b>，不许写成「原件」</span></div>
+          <div class="mini-row"><span>乙</span><span>加第三态 <code>localOnly: true</code>「原件已取得 · 本地存档（无公开链接）」，中性色不判违规</span></div>
+          <div class="mini-row"><span>丙</span><span>一律判红，逼着每行都去找链接——最严格，但会把「我确实有原件、只是没上网」也标成违规</span></div>
+        </div>
+        我倾向甲 + 乙兜底：官方 PDF 优先，真没有公开地址的才用乙。<b>红标必须保留</b>，否则没人会去补。
+      </li>
+      <li>
+        <b>②「第 N 天」的锚点日按哪个算？</b>
+        本页按<b>手术日</b>（2026-06-12）算，得 D+128。乳腺癌也可以按首次化疗、确诊日算——三个数会差很多。
+        这一条要定成家族口径，否则 30 多个仓各写各的（同仓 v0.4 用的是 2026-01-21，D+279）。
+      </li>
+      <li>
+        <b>③ 探针还差一条链接断言。</b>
+        backfill 第 5 步要求「starter 最新版探针含链接断言」，但 <code>probe-disease-primer.mjs</code> 目前只有 P1–P8，
+        没有「表里每条原件行都有 https 链接」这一条。确认后我补 P9＋反向对照（否则这一步等于没验）。
+      </li>
+    </ol>
+  </section>
+
+  <div class="card">
+    <h2>还有一版可以对照</h2>
+    <p class="hint">
+      同在 prototypes 下的 <a href="../v0.4/index.html">v0.4</a> 是另一路会话做的完整原型（带侧栏与全部页面，状态卡 D+279，指南表 7 行都已给链接）。
+      本页只做一件事：把新增的两块单独摆出来，方便你逐条看，不用在整台原型里找。
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>点这里试</h2>
+    <p class="hint">
+      右上角「?」或状态卡里的「疾病概要：乳腺癌是什么？」都能打开整页概要。关掉有三个入口：左上「返回」、右上「✕」、
+      键盘 Esc 或浏览器返回键——每个都只退一层，关掉后回到原来的滚动位置。
+      概要用的是同一份数据，README 里的四段与它同源。
+    </p>
+  </div>
+
+  <div class="fill" aria-hidden="true"></div>
+  <div class="fill" aria-hidden="true"></div>
+  <div class="fill" aria-hidden="true"></div>
+  <div class="fill" aria-hidden="true"></div>
+  <div class="fill" aria-hidden="true"></div>
+  <div class="fill" aria-hidden="true"></div>
+</main>
+
+<script src="primer-data.js"></script>
+<script>
+/* 状态卡的天数一律由锚点日派生（36 号 §2.6）——这里刻意算，不写死，证明数字是推出来的 */
+(function () {
+  var ANCHOR = '2026-06-12'   // 手术日 = Day 0
+  var TODAY = '2026-10-18'    // 模拟「今天」
+  var NEXT = '2026-11-03'     // 下次事项日期
+  var NEXT_LABEL = '放疗定位'
+  var DAY = 86400000
+  function days(a, b) { return Math.round((Date.parse(b) - Date.parse(a)) / DAY) }
+
+  var n = days(ANCHOR, TODAY)
+  var dayEl = document.querySelector('[data-sc-day]')
+  if (dayEl) dayEl.innerHTML = '第 <b>' + n + '</b> 天<small data-sc-anchor>锚点日：' + ANCHOR + '（手术日）</small>'
+
+  var until = days(TODAY, NEXT)
+  var uEl = document.querySelector('[data-sc-until]')
+  if (uEl) uEl.textContent = '（还有 ' + until + ' 天）'
+
+  var head = document.querySelector('#sc-a .sc-eyebrow')
+  if (head) head.textContent = 'D+' + n + ' 状态卡 · 距下一阶段（' + NEXT_LABEL + '）'
+
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-demo]')
+    if (!b) return
+    var map = { core: '这里进当前阶段的核心页（原型里是「术后上肢」四点位记录）。', init: '这里进三步初始化向导（锚点日 / 当前阶段 / 下次事项）。' }
+    alert(map[b.getAttribute('data-demo')] || '')
+  })
+})()
+</script>
+<script src="primer.js"></script>
+</body>
+</html>
