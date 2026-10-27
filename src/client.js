@@ -223,13 +223,22 @@
         const [connecting, setConnecting] = React.useState(false)
         const [narrow, setNarrow] = React.useState(false)
         const [dragging, setDragging] = React.useState(false)
+        // iframe 每次加载完 +1：页面那边要在 DOMContentLoaded 之后才挂得上监听，
+        // 早发的状态消息会丢，所以 onLoad 之后必须再回告一次。
+        const [frameReady, setFrameReady] = React.useState(0)
 
         const brokenTimer = React.useRef(null)
         const shellRef = React.useRef(null)
         const dragHostRef = React.useRef(null)
         const frameRef = React.useRef(null)
 
-        const hasConversation = Boolean(conversation)
+        // `conversation` prop 在 customFrame 下**恒非空**：宿主即使没有会话，也会把
+        // 一个 display:none 的容器交进来。拿它当"已有会话"的判据，按钮就永远是
+        // 「收起 AI 对话」、ensureSession 永远不触发，空白 aside 还会常驻（2026-10-24 教训）。
+        // 会话归属只能问 currentSession() + ownsSession(id)，并在 subscribe 回调里重算。
+        const [sessionTick, bumpSessionTick] = React.useReducer((n) => n + 1, 0)
+        const ownedId = React.useMemo(() => ownedSession(), [sessionTick])
+        const hasConversation = Boolean(ownedId)
         const canOpenSession = typeof bridge?.desktopWorkbenches?.ensureSession === 'function'
 
         // 8 秒内没有 onLoad 就当作没起来：宁可给一个能重试的提示，也不留一块白板。
@@ -242,9 +251,14 @@
         }, [generation])
 
         // 挂载后开始消化未送达的开场白（composer 就绪一轮一次），并订阅会话变化。
+        // 订阅回调必须顺带 bumpSessionTick：会话是外面建的（左侧列表、页面上的「对话」按钮），
+        // 不重算的话 hasConversation 会一直停在首帧的 false。
         React.useEffect(() => {
           const timer = setInterval(() => { if (flushDraft()) setNote('草稿已填入会话，按回车发送') }, 500)
-          const unsubscribe = bridge?.desktopWorkbenches?.subscribe?.(() => setNote(''))
+          const unsubscribe = bridge?.desktopWorkbenches?.subscribe?.(() => { setNote(''); bumpSessionTick() })
+          // 挂载后再算一次：首帧渲染时 bridge 可能刚赋上，且"从左侧列表进来就已经有会话"
+          // 不会触发 subscribe 回调，不补这一下 hasConversation 会一直是 false。
+          bumpSessionTick()
           return () => { clearInterval(timer); unsubscribe?.() }
         }, [])
 
@@ -321,7 +335,9 @@
               const res = await fetch(`${API_PREFIX}/api/health`)
               dir = (await res.json())?.dir || null
             } catch { /* 拿不到目录也照样调起 */ }
-            const id = await bridge.desktopWorkbenches.ensureSession({ folder: dir })
+            // folder 只在拿到真实业务目录时才传：ensureSession 收到空 folder 会直接失败，
+            // 那比"没传"更糟（用户看到的是点了没反应）。没选目录时让宿主走它自己的默认。
+            const id = await bridge.desktopWorkbenches.ensureSession(dir ? { folder: dir } : {})
             rememberDraft({ sessionId: id, prompt: prompt || onboardingPrompt(dir) })
             flushDraft()
             setPaneOpen(true)
@@ -338,6 +354,17 @@
           if (!hasConversation) { void openAgent(); return }
           setPaneOpen((open) => !open)
           setNote('')
+        }
+
+        /**
+         * 页面上那颗「对话」按钮走这里：没有会话就调起，有会话就展开并补草稿。
+         * 与 onAgentClick 的区别是**幂等**——重复点不会把已经展开的面板又收起来。
+         */
+        async function ensureOpen() {
+          if (!hasConversation) { await openAgent(); return }
+          setPaneOpen(true)
+          flushDraft()
+          setNote('会话已就绪，草稿已填入输入框，按回车发送')
         }
 
         /* ---- 页面发来的「与 Agent 讨论」草稿：只填输入框，不发送 ---- */
@@ -361,14 +388,21 @@
         // 直接在 effect 里闭包 deliverContext 会拿到首帧的 state（会话 ID 已经变了也不自知）。
         const deliverRef = React.useRef(null)
         React.useEffect(() => { deliverRef.current = deliverContext })
+        const openRef = React.useRef(null)
+        React.useEffect(() => { openRef.current = ensureOpen })
         React.useEffect(() => {
           function onMessage(event) {
             const data = event.data
-            if (!data || typeof data !== 'object' || data.type !== 'pinky:agent-draft') return
+            if (!data || typeof data !== 'object') return
+            const type = data.type
+            if (type !== 'pinky:agent-draft' && type !== 'pinky:open-agent') return
             const frame = frameRef.current
             // 不认"谁都能发"的消息：必须来自我们自己的 iframe，且同源。
             if (!frame || event.source !== frame.contentWindow) return
             if (event.origin !== window.location.origin) return
+            // 页面上的「对话」按钮：调起 / 展开原生会话。工作台不复制聊天界面，
+            // 只把宿主的会话面板叫到前台。
+            if (type === 'pinky:open-agent') { void openRef.current?.(); return }
             const prompt = typeof data.prompt === 'string' ? data.prompt.trim() : ''
             if (!prompt) return
             void deliverRef.current?.(prompt.slice(0, 8000))
@@ -382,6 +416,19 @@
           : connecting ? '正在连接…'
             : !hasConversation ? 'AI 对话'
               : paneOpen ? '收起 AI 对话' : '打开 AI 对话'
+
+        /* ---- 把会话状态回告页面：顶栏那颗「对话」按钮据此显示「已连接 / 未进入激活」 ---- */
+        React.useEffect(() => {
+          const frame = frameRef.current
+          if (!frame?.contentWindow) return
+          frame.contentWindow.postMessage({
+            type: 'pinky:agent-state',
+            connected: hasConversation,
+            paneOpen: paneOpen && hasConversation,
+            connecting,
+            canOpen: canOpenSession,
+          }, window.location.origin)
+        }, [hasConversation, paneOpen, connecting, canOpenSession, frameReady, generation])
 
         if (broken) return h(Fallback, { onRetry: () => setGeneration((n) => n + 1) })
 
@@ -423,7 +470,7 @@
                 title: `${TITLE} · ${SUBTITLE}`,
                 style: frameStyle,
                 sandbox: 'allow-scripts allow-same-origin allow-forms allow-downloads',
-                onLoad: () => { setBroken(false); clearTimeout(brokenTimer.current) },
+                onLoad: () => { setBroken(false); clearTimeout(brokenTimer.current); setFrameReady((n) => n + 1) },
               }),
             ),
             // 原生会话**始终挂载**：卸载会丢掉输入框与草稿状态（宿主明确要求不重挂输入树），

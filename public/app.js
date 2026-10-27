@@ -2,6 +2,7 @@
 import { S, boot, resetBoot, refresh, STAGE_HINT, SYMPTOM_CODES, ARM_STAGES } from './js/state.js'
 import { api, uploadDocument, guessKind, isTextFile } from './js/api.js'
 import { discussWithAgent } from './js/agent.js'
+import { hostAgent, initHostAgent, requestOpenAgent, agentStatusText } from './js/host-agent.js'
 import { parseFault } from './js/parse-fault.js'
 import {
   $, $$, esc, fmtNum, unitText, longDate, today, toast, openModal, closeModal, downloadText,
@@ -100,8 +101,11 @@ function paintTop() {
     store.title = ready ? st.dir : '选择资料目录（不使用默认路径）'
   }
   if (chat) {
-    chat.innerHTML = `<i class="grey"></i><span>对话</span><b>未进入激活</b>`
-    chat.title = '这一版未接入 DSH 宿主；业务面板不依赖会话'
+    // 顶栏这颗是**真的入口**：状态来自宿主回告（pinky:agent-state），不是硬写的字。
+    // 宿主没回告之前只能说"点此打开"，不能先替它宣布"已连接"。
+    const st2 = agentStatusText()
+    chat.innerHTML = `<i class="${st2.dot}"></i><span>对话</span><b>${st2.label}</b>`
+    chat.title = st2.title
   }
   const subject = st?.subject
   if ($('#profile-avatar')) $('#profile-avatar').textContent = (subject?.displayName ?? '我').slice(0, 1)
@@ -351,11 +355,21 @@ function stageHelpModal() {
   btn('返回', 'close'))
 }
 
+/**
+ * 顶栏「对话」：宿主里直接调起原生会话；独立启动时说明为什么这里没有对话。
+ * 旧版这里弹的是「这一版没有接入宿主」——那句已经不对了，会话是真的接了的。
+ */
 function sessionModal() {
-  openModal('工作台对话 · 未进入激活', `<div class="notice plain">对话由 DSH 宿主提供，工作台不复制聊天界面。这一版<b>没有接入宿主</b>，所以顶栏第二个状态始终是「未进入激活」。</div>
-    <div class="row"><div><b>业务面板不依赖会话</b><p>看板、指标卡、一图秀、测量与导出在未激活时都可使用；只有需要宿主对话的动作才要它。</p></div>${pill('设计约束', 'green')}</div>
-    <div class="row"><div><b>资料目录</b><p><code>${esc(S.state?.dir ?? '未设置')}</code></p></div>${pill(S.state?.ready ? '已激活' : '未设置', S.state?.ready ? 'green' : 'grey')}</div>
-    <div class="row"><div><b>接入后</b><p>先选目录、再建会话；开场草稿不自动发送；取消不留目录、会话或绑定。</p></div>${pill('M5 待做', 'grey')}</div>`,
+  if (hostAgent.host) {
+    const result = requestOpenAgent()
+    if (result === 'sent') { toast('正在为你调起右侧对话…'); return }
+    toast('没能联系上宿主面板；可以从左侧会话列表新建一个')
+    return
+  }
+  openModal('工作台对话 · 需要在宿主里打开', `<div class="notice plain">对话由 DSH 宿主提供，工作台不复制聊天界面。现在是<b>独立启动的页面</b>（<code>npm start</code>），本机没有会话面板，所以这颗按钮只会给说明。</div>
+    <div class="row"><div><b>在 DSH Desktop 里打开就有对话</b><p>同一个包装进 Desktop 后，点这颗按钮会调起右侧原生会话：开场白先填进草稿，不会自动发送。</p></div>${pill('宿主接入', 'green')}</div>
+    <div class="row"><div><b>业务面板不依赖会话</b><p>看板、指标卡、一图秀、测量与导出在没有会话时都可用；只有需要 AI 的动作才要它。</p></div>${pill('设计约束', 'green')}</div>
+    <div class="row"><div><b>资料目录</b><p><code>${esc(S.state?.dir ?? '未设置')}</code></p></div>${pill(S.state?.ready ? '已激活' : '未设置', S.state?.ready ? 'green' : 'grey')}</div>`,
   btn('关闭', 'close', 'primary'))
 }
 
@@ -1094,6 +1108,9 @@ function bindChrome() {
 
 async function main() {
   bindChrome()
+  // 先挂宿主会话桥：宿主可能在 iframe onLoad 后立刻回告一次状态，
+  // 晚挂就漏掉第一条，顶栏会一直停在"点此打开"。
+  initHostAgent(() => paintTop())
   applyHash()
   try {
     await boot()

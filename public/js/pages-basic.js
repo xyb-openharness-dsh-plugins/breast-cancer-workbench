@@ -126,6 +126,13 @@ export function dashboard() {
   const questions = (d().questions?.list ?? []).filter((q) => q.includeInExport).slice(0, 3)
   const symptoms = d().symptoms?.list ?? []
 
+  // 「最近的变化」不再是一张只能读数字的静态卡：换成和「指标卡」页同一套 mcard，
+  // 点一下 3D 翻转看最近几次的迷你趋势（2026-10-27 用户要求「可点击 3d 反转 + 趋势图」）。
+  // 数据仍取 overview.recent 决定"哪四项最近"，卡片内容再按 code 回到 metrics.cards 取全量。
+  const cardsByCode = new Map((d().metrics?.cards ?? []).map((c) => [c.code, c]))
+  const mCtcaeVer = d().metrics?.ctcae?.version ?? ''
+  const mGlMeta = d().metrics?.guideline ?? null
+
   const hasAnything = docs.total > 0 || (arm.count > 0) || recent.length > 0 || tasks.length > 0 || questions.length > 0
 
   const armStrip = arm.latest
@@ -177,7 +184,7 @@ export function dashboard() {
     : `${docs.parsed} 份已解析${docs.pendingCandidates ? ` · ${docs.pendingCandidates} 项待核对` : ' · 无待核对'}${docs.failed ? ` · ${docs.failed} 份解析失败` : ''}`
 
   if (!hasAnything) {
-    return `${head('今天，先照顾眼前的一件事。', SUBTITLES.dashboard, btn(`当前阶段：${stage?.label ?? '未选择'}`, 'stage-pick', 'soft'))}
+    return `${head('今天，先照顾眼前的一件事。', SUBTITLES.dashboard, btn(`当前阶段：<b>${esc(stage?.label ?? '未选择')}</b>`, 'stage-pick', 'stage-chip'))}
       ${demoBanner()}
       ${statusCard()}
       <section class="demo-cta" aria-label="模拟数据入口"><div><span class="eyebrow">先看看效果</span><b>加载一套模拟数据</b><p>会创建独立的演示档案，并自动打开「病情一图秀」。不写入你的真实档案。</p></div>${btn('加载完整示例', 'load-demo-showcase', 'primary')}</section>
@@ -193,7 +200,7 @@ export function dashboard() {
       <div class="help-box">工作台不判断病情，也不给处置建议；它把散落的信息整理成可以核对、可以带走的样子。所有数据只存在你选择的资料目录里。</div>`
   }
 
-  return `${head('今天，先照顾眼前的一件事。', SUBTITLES.dashboard, btn(`当前阶段：${stage?.label ?? '未选择'}`, 'stage-pick', 'soft'))}
+  return `${head('今天，先照顾眼前的一件事。', SUBTITLES.dashboard, btn(`当前阶段：<b>${esc(stage?.label ?? '未选择')}</b>`, 'stage-pick', 'stage-chip'))}
   ${demoBanner()}
   ${statusCard()}
   ${docs.pendingCandidates ? `<div class="banner rose"><span><b>${docs.pendingCandidates} 项整理结果待核对</b>：核对只表示"转录检查过"，不等于医学审核。</span>${go('去核对', 'records', '整理草稿 / 核对', 'soft')}</div>` : ''}
@@ -207,12 +214,16 @@ export function dashboard() {
   <div class="dashboard-grid">
     <div>
       ${section('最近的变化', '同一份记录，同时出现在一图秀、指标卡和就诊准备里。', go('打开一图秀 ↗', 'timeline', '', 'text-button'))}
-      ${recent.length ? `<div class="grid two">${recent.slice(0, 4).map((r) => `
-        <section class="card">
+      ${recent.length ? `<div class="metric-grid">${recent.slice(0, 4).map((r) => {
+        const card = cardsByCode.get(r.code)
+        // 有完整卡片就用可翻转的那套；拿不到（旧接口/字段缺失）时退回静态卡，不硬翻一个空背面。
+        if (card) return metricCard(card, S.flipped.has(r.code), mCtcaeVer, mGlMeta)
+        return `<section class="card">
           <div class="card-head"><div><h3>${esc(r.name)}</h3><p>${longDate(r.date)} · ${esc(r.source)}</p></div>${pill(r.categoryLabel, 'grey')}</div>
           <div style="font-size:23px;font-weight:600;letter-spacing:-.5px">${fmtNum(r.value, r.dec)}<small style="font-size:11px;font-weight:500;color:var(--muted);margin-left:4px">${esc(unitText(r.unit))}</small></div>
           <p class="small-note">${r.delta === null ? '首次记录' : `较前次 ${r.delta > 0 ? '+' : ''}${fmtNum(r.delta, r.dec)} ${esc(unitText(r.unit))}`} · 只是两次记录相减</p>
-        </section>`).join('')}</div>`
+        </section>`
+      }).join('')}</div>`
     : empty('还没有指标记录', '导入一份检验单，或手工补录一个值。', btn('＋ 手工补录', 'add-observation', 'primary'))}
       ${symptoms.length ? `<section class="card" style="margin-top:14px"><div class="card-head"><h3>最近记录的身体感受</h3>${go('全部 →', 'care', '不适记录', 'text-button')}</div>
         <div class="row"><div><b>${esc(symptoms[0].label)} · 强度 ${symptoms[0].level}/3</b><p>${longDate(symptoms[0].occurredOn)} · ${esc(symptoms[0].note ?? '没有补充描述')} · 本人自述</p></div>${pill('自评强度', 'grey')}</div>

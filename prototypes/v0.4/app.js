@@ -709,7 +709,7 @@ function dashboard() {
   const docsText = prof.id === 'p2'
     ? '还没有资料 · 先导入一份'
     : `${done} / ${state.docs.length} 份已核对${pending ? ` · ${pending} 份待核对` : ' · 无待核对'}`;
-  return `${head('今天，先照顾眼前的一件事。', SUBTITLES.dashboard, btn(`当前阶段：${state.stage}`, 'stage-pick', 'soft'))}
+  return `${head('今天，先照顾眼前的一件事。', SUBTITLES.dashboard, btn(`当前阶段：<b>${esc(state.stage)}</b>`, 'stage-pick', 'stage-chip'))}
   ${stageCard(prof)}
   ${prof.full ? '' : `<div class="notice warn">当前档案：<b>${esc(prof.tag)}</b> · ${esc(prof.name)} · ${esc(prof.side)}侧 · ${esc(prof.surgery)}。该画像在原型里只演示<b>元数据与空态</b>，下方指标与记录仍是 DEMO-1 的模拟数据，不能当成这位患者的病历。</div>`}
   ${state.cfg.root ? '' : `<div class="notice plain">资料位置还没设置，所以<b>对话未进入激活</b>。这不影响你浏览看板、翻指标卡：规范要求业务面板不依赖会话。需要向助手提问或保存文件时，再选目录并创建会话。</div>`}
