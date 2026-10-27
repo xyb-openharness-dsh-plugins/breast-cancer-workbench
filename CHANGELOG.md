@@ -1,5 +1,17 @@
 # 变更记录
 
+## 0.13.1 — 2026-10-27（primer 模式件同步到 starter rc.2）
+
+- **修红**：`npm run check` 的「模式 disease-primer.js 与源一致」是红的——上游 starter 在 11:14 把 `assets/patterns/disease-primer.js`
+  升到 1.10.0-rc.2，新增第三种来源状态 `entry`（官方入口页：全文要读者自行注册/订阅，如 NCCN 临床版，允许存在但必须带 note
+  且不得写「已取得」）。本仓 `public/primer.js` 还是旧版，闸门据此判红。
+- **做法**：跑 `node scripts/build-primer-data.mjs` 从 starter 重新取模式件，再把同样的两份覆盖到 `prototypes/v0.4/` 里的副本（原型与开发版必须同行为）。**数据一行没改**——本仓没有 `entry` 类来源，新分支不会触发，所以这是零行为变化的同步。
+- **版本**：0.13.0 → **0.13.1**，八处字面量一致（`VERSION` / `package.json` / `workbench.json` / `lib/version.js` /
+  `lib/client.js` / `public/index.html` 三处 / `public/js/state.js`）。渠道仍是 `prototype`（与 0.13.0 发布件一致）。
+- **验证**：`npm run check` **239/239 全绿**（同步前是 238/239）；开发版探针 **10/10**（P1–P9 + E0，含 P9 三档排版对齐）。
+- **装机**：`~/Library/Application Support/dsh-desktop/harness/profiles/web` 换到 0.13.1 tgz，bundles 43 → 43（未增未减），
+  依赖 38 项 0 缺失，装机副本 `public/primer.js` / `public/index.html` / `lib/version.js` 与仓库 sha256 全一致。
+
 ## 0.13.0 — 2026-10-27（36 号疾病概要 v2：指南可点 + 状态卡）
 
 - **指南原件可点（§2.5）**：疾病概要 evidence 表的「原件」列不再只写文字。已取得原件的行给 `https://` 链接，未取得原件的行给二次来源链接；确实拿不到的如实标「未取得原件」并注明原因，不编 URL。
