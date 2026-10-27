@@ -12,7 +12,8 @@
 
 > 四段固定：定义 → 医学资料规范和指南情况 → 目前治疗全景概要 → 发展趋势。整体属**解释层**（第 ② 层）：
 > 只整理公开信息，不判断你的病情。工作台右上角的「?」看同一份内容的整页版。
-> 原件状态照实写：CACA-CBCS 2025 精要本有本地 PDF 抽取件；NCCN / AJCC / WHO 未取得原件，页码待核。
+> 原件状态照实写，且每行都带可点链接（36 号 §2.5）：CACA-CBCS 2025 精要本有本地 PDF 抽取件（公开渠道只有[书目页 ↗](https://book.cppinfo.cn/Encyclopedias/home/Index/4807429)）；NCCN / AJCC / WHO 未取得原件，页码待核，链接指向官方出版信息页。
+> 已公开的期刊原件：[2026 年版 PDF ↗](https://www.china-oncology.com/rc-pub/front/front-article/download/145257590/lowqualitypdf/%E4%B8%AD%E5%9B%BD%E6%8A%97%E7%99%8C%E5%8D%8F%E4%BC%9A%E4%B9%B3%E8%85%BA%E7%99%8C%E8%AF%8A%E6%B2%BB%E6%8C%87%E5%8D%97%E4%B8%8E%E8%A7%84%E8%8C%83%EF%BC%882026%E5%B9%B4%E7%89%88%EF%BC%89.pdf)、[2024 年版 PDF ↗](https://www.china-oncology.com/rc-pub/front/front-article/download/141011677/lowqualitypdf/%E4%B8%AD%E5%9B%BD%E6%8A%97%E7%99%8C%E5%8D%8F%E4%BC%9A%E4%B9%B3%E8%85%BA%E7%99%8C%E8%AF%8A%E6%B2%BB%E6%8C%87%E5%8D%97%E4%B8%8E%E8%A7%84%E8%8C%83%EF%BC%882024%E5%B9%B4%E7%89%88%EF%BC%89.pdf)。
 
 ### 定义
 
@@ -20,20 +21,21 @@
 
 病理类型命名以 WHO《乳腺肿瘤分类》第 5 版为口径（本项目据精要本转引，未取得 WHO 原件）。浸润性乳腺癌的分子分型按 ER / PR / HER2 / Ki-67 划分（精要本 P36、P40）；2025 版在 P40 增加标注：Luminal-B HER2 阴性时，「PgR 低表达」与「Ki67 高表达」符合一项即可判定。分期用 AJCC 第 8 版 TNM，精要本 P35 在 2025 版按 AJCC 第 8 版原文做了系统性修改。本台只把报告原文抄进档案，不把分型或分期换算成「严重程度」。
 
-**来源**：CACA-CBCS / CMA-CSO-BO · 乳腺癌诊治指南与规范（2025 年版 精要本）· 2025 精要本（2024-12-22 发布）· 原件已取得 · 页码 P35–P36、P40 ｜ WHO · Classification of Tumours: Breast Tumours, 5th ed. · 第 5 版 · 未取得原件，据二次来源 · 页码待核 ｜ AJCC · Cancer Staging Manual, 8th ed.（2017）· 未取得原件，据二次来源 · 页码待核（据精要本 P35 转引）
+**来源**：CACA-CBCS / CMA-CSO-BO · 乳腺癌诊治指南与规范（2025 年版 精要本）· 2025 精要本（2024-12-22 发布）· 原件已取得（图书，[书目页 ↗](https://book.cppinfo.cn/Encyclopedias/home/Index/4807429)）· 页码 P35–P36、P40 ｜ WHO · Classification of Tumours: Breast Tumours, 5th ed. · 第 5 版（2019）· 未取得原件，[据 IARC 出版页 ↗](https://publications.iarc.who.int/Book-And-Report-Series/Who-Classification-Of-Tumours/Breast-Tumours-2019) · 页码待核 ｜ AJCC · Cancer Staging Manual, 8th ed.（2017）· 未取得原件，[据二次来源 ↗](https://pubmed.ncbi.nlm.nih.gov/28294283/) · 页码待核（据精要本 P35 转引）
 
 ### 医学资料规范和指南情况
 
 | 机构 | 文件 | 版本 / 年份 | 原件 | 本台的用途 |
 |---|---|---|---|---|
-| CACA-CBCS / CMA-CSO-BO | 中国抗癌协会与中华医学会肿瘤学分会乳腺癌诊治指南与规范 | 2025 年版 精要本（2024-12-22 发布，246 页） | 已取得（MinerU 抽取 md，源为本地 PDF） | 主引用源：随访节奏（P208 表 9.5 / P209 表 9.6）、分级口径、分型与病理判读 |
-| CACA-CBCS / CMA-CSO-BO | 中国抗癌协会乳腺癌诊治指南与规范 | 2024 年版（全文，2024-06-10 发布） | 未取得原件（公众号转载 md，非官方排版） | 补充源：查 2025 精要本压缩掉的完整章节 |
-| CSCO | CSCO 乳腺癌诊疗指南 | 2023 版（58 页扫描 PDF） | 已取得（未抽文本，只能整页查看） | 对照源：看中国 I/II/III 级分层推荐的写法，不作阈值来源 |
-| NCCN | NCCN Guidelines · Breast Cancer | 版本未核实 | 未取得原件 | 仅在 2025 精要本 P80 被引述；本台不单独引用其条文 |
-| AJCC | Cancer Staging Manual, 8th ed.（乳腺章节） | 2017 | 未取得原件（据精要本 P35 转引） | TNM 解剖学分期与预后分期的口径 |
-| WHO | Classification of Tumours: Breast Tumours, 5th ed. | 第 5 版（年份未核实） | 未取得原件（据精要本转引） | 组织学类型命名的唯一口径 |
+| CACA-CBCS / CMA-CSO-BO | 中国抗癌协会与中华医学会肿瘤学分会乳腺癌诊治指南与规范 | 2025 年版 精要本（2024-12-22 发布，246 页） | [已取得（本地 PDF 抽取）· 书目页 ↗](https://book.cppinfo.cn/Encyclopedias/home/Index/4807429) | 主引用源：随访节奏（P208 表 9.5 / P209 表 9.6）、分级口径、分型与病理判读 |
+| CACA-CBCS / CMA-CSO-BO | 中国抗癌协会乳腺癌诊治指南与规范（2026 年版） | 中国癌症杂志 2025 年第 35 卷第 12 期，P1157–P1255 | [官方 PDF 可点 · 本台未核对页码 ↗](https://www.china-oncology.com/rc-pub/front/front-article/download/145257590/lowqualitypdf/%E4%B8%AD%E5%9B%BD%E6%8A%97%E7%99%8C%E5%8D%8F%E4%BC%9A%E4%B9%B3%E8%85%BA%E7%99%8C%E8%AF%8A%E6%B2%BB%E6%8C%87%E5%8D%97%E4%B8%8E%E8%A7%84%E8%8C%83%EF%BC%882026%E5%B9%B4%E7%89%88%EF%BC%89.pdf) | 对照源：2025 精要本之后的新版全文；本台尚未按这一版改页码引用 |
+| CACA-CBCS / CMA-CSO-BO | 中国抗癌协会乳腺癌诊治指南与规范（2024 年版 全文） | 2024 年版（2024-06-10 发布） | [已取得 · 期刊官网 PDF ↗](https://www.china-oncology.com/rc-pub/front/front-article/download/141011677/lowqualitypdf/%E4%B8%AD%E5%9B%BD%E6%8A%97%E7%99%8C%E5%8D%8F%E4%BC%9A%E4%B9%B3%E8%85%BA%E7%99%8C%E8%AF%8A%E6%B2%BB%E6%8C%87%E5%8D%97%E4%B8%8E%E8%A7%84%E8%8C%83%EF%BC%882024%E5%B9%B4%E7%89%88%EF%BC%89.pdf) | 补充源：查 2025 精要本压缩掉的完整章节 |
+| CSCO | CSCO 乳腺癌诊疗指南 | 2023 版（58 页扫描 PDF） | [已取得（本地扫描件）· 转载 PDF ↗](https://www.healthcare-bio.com/upload/20231226/aa65e60b5180f43e34784c93dfbb2cf9.pdf) | 对照源：看中国 I/II/III 级分层推荐的写法，不作阈值来源；链接为第三方转载，非官方发布页 |
+| NCCN | NCCN Guidelines · Breast Cancer | V7.2026（nccn.org 指南页 2026-10-27 显示） | [未取得原件（需机构订阅）· 官方指南页 ↗](https://www.nccn.org/guidelines/guidelines-detail?category=1&id=1419) | 仅在 2025 精要本 P80 被引述；本台不单独引用其条文。该页版本随更新滚动，引用以页面当日显示为准 |
+| AJCC | Cancer Staging Manual, 8th ed.（乳腺章节） | 2017 | [未取得原件（据精要本 P35 转引）· 二次来源 ↗](https://pubmed.ncbi.nlm.nih.gov/28294283/) | TNM 解剖学分期与预后分期的口径 |
+| WHO | Classification of Tumours: Breast Tumours, 5th ed. | 第 5 版（2019） | [未取得原件 · IARC 出版页 ↗](https://publications.iarc.who.int/Book-And-Report-Series/Who-Classification-Of-Tumours/Breast-Tumours-2019) | 组织学类型命名的唯一口径 |
 
-同一份指南隔一年，条目会变；所以本台引用一律带「机构 + 版本 + 页码」。未取得原件的文件只记「存在」与「大致讲什么」，不引用其具体条文。CSCO 的分层推荐（I/II/III 级）在本台不做成产品菜单——分层是给医生的写法，不是给患者的选择题。
+同一份指南隔一年，条目会变；所以本台引用一律带「机构 + 版本 + 页码」。未取得原件的文件只记「存在」与「大致讲什么」，不引用其具体条文。CSCO 的分层推荐（I/II/III 级）在本台不做成产品菜单——分层是给医生的写法，不是给患者的选择题。2026 年版全文已在期刊官网公开，但本台尚未逐页核对，所以仍以 2025 年版精要本作为页码来源；两版并列在表里，不合并成一个「最新版」。
 
 **来源**：见上表逐行。
 
@@ -47,7 +49,7 @@
 
 以上是文献与指南里列出的手段，按病期与线序排列，**不代表任何一项适合你**。选哪一个，这一句需要问你的医生。
 
-**来源**：CACA-CBCS / CMA-CSO-BO · 乳腺癌诊治指南与规范（2025 年版 精要本）· 2025 精要本 · 原件已取得 · 页码 P65、P79、P109、P113、P208–P209、P227
+**来源**：CACA-CBCS / CMA-CSO-BO · 乳腺癌诊治指南与规范（2025 年版 精要本）· 2025 精要本 · 原件已取得（图书，[书目页 ↗](https://book.cppinfo.cn/Encyclopedias/home/Index/4807429)）· 页码 P65、P79、P109、P113、P208–P209、P227
 
 ### 发展趋势
 
@@ -59,8 +61,9 @@
 - 2025 精要本 P29「乳腺常用影像学方法的比较」新增「乳腺断层 X 线」相关内容。
 - 2025 精要本 P93、P94 为新增页：自体皮瓣乳房重建技术、植入物乳房重建分类。
 - 2025 精要本 P80 记录：NCCN 等提出「腋窝临床体检阴性、影像学 1–2 枚淋巴结异常且细针穿刺阳性者可尝试前哨淋巴结活检」，国内专家团 2024 年 10 月投票同意率低于 50%。
+- 《中国癌症杂志》第 35 卷第 12 期（P1157–P1255）刊出《中国抗癌协会乳腺癌诊治指南与规范（2026 年版）》，[期刊官网提供 PDF ↗](https://www.china-oncology.com/rc-pub/front/front-article/download/145257590/lowqualitypdf/%E4%B8%AD%E5%9B%BD%E6%8A%97%E7%99%8C%E5%8D%8F%E4%BC%9A%E4%B9%B3%E8%85%BA%E7%99%8C%E8%AF%8A%E6%B2%BB%E6%8C%87%E5%8D%97%E4%B8%8E%E8%A7%84%E8%8C%83%EF%BC%882026%E5%B9%B4%E7%89%88%EF%BC%89.pdf)。本台当前仍以 2025 年版精要本作为页码来源，尚未按 2026 年版逐页核对。
 
-**来源**：CACA-CBCS / CMA-CSO-BO · 乳腺癌诊治指南与规范（2025 年版 精要本）· 修订汇总 · 2025 精要本（2024-12-22 发布）· 原件已取得 · 页码 P23–P94 ｜ CACA-CBCS / CMA-CSO-BO · 中国抗癌协会乳腺癌诊治指南与规范（2024 年版）· 2024 版（2024-06-10）· 未取得原件（公众号转载件）· 页码待核
+**来源**：CACA-CBCS / CMA-CSO-BO · 乳腺癌诊治指南与规范（2025 年版 精要本）· 修订汇总 · 2025 精要本（2024-12-22 发布）· 原件已取得（图书，[书目页 ↗](https://book.cppinfo.cn/Encyclopedias/home/Index/4807429)）· 页码 P23–P94 ｜ CACA-CBCS / CMA-CSO-BO · 中国抗癌协会乳腺癌诊治指南与规范（2024 年版）· 2024 版（2024-06-10）· 原件已取得（[期刊官网 ↗](https://www.china-oncology.com/zh/article/doi/10.19401/j.cnki.1007-3639.2023.12.004/)）· 页码待核 ｜ CACA-CBCS / CMA-CSO-BO · 中国抗癌协会乳腺癌诊治指南与规范（2026 年版）· 中国癌症杂志 2025;35(12):1157-1255 · 原件已取得（[期刊官网 ↗](https://www.china-oncology.com/zh/article/doi/10.19401/j.cnki.1007-3639.2025.12.009/)）· 页码待核
 
 ## 三道闸口（顺序不可跳）
 

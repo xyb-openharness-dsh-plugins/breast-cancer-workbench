@@ -68,6 +68,53 @@ function demoBanner() {
   return `<div class="banner warn"><span><b>${esc(demo.id)} · ${esc(demo.label)}</b>：当前看到的是<b>模拟数据</b>，不是任何真实患者；观测 ${demo.counts?.observations ?? 0} 条、测量 ${demo.counts?.measurements ?? 0} 条、材料 ${demo.counts?.documents ?? 0} 份。</span>${btn('切换到我的档案', 'switch-profile', 'text-button')}</div>`
 }
 
+/**
+ * 36 号 §2.6 · 看板首卡＝病程状态卡，四件齐全：
+ *   ① 卡头 `D+N 状态卡 · 距下次安排 N 天`；② 大字「第 N 天」（锚点日派生，不手填）；
+ *   ③ 现状行（当前阶段原文 + 状态 + 下次日期与事项）；④ 出口按钮排（主按钮进治疗历程 +
+ *      副按钮「疾病概要：<病>是什么？」打开 36 号整页概要）。
+ * 没有锚点（还没记手术或治疗）时整卡显示「待初始化」并指向录入入口——不编一个数字出来。
+ */
+export function statusCard() {
+  const o = d().overview
+  if (!o) return ''
+  const name = (typeof globalThis !== 'undefined' && globalThis.DISEASE_PRIMER?.name) || '乳腺癌'
+  const primerBtn = `<button class="soft" data-primer-open>疾病概要：${esc(name)}是什么？</button>`
+  const t0 = today()
+  const dayN = (date) => Math.round((Date.parse(`${t0}T00:00:00Z`) - Date.parse(`${date}T00:00:00Z`)) / 86400000)
+
+  const anchor = o.anchor
+  if (!anchor) {
+    return `<section class="card status-card" aria-label="病程状态卡">
+      <div class="sc-head"><span class="eyebrow">状态卡 · 待初始化</span></div>
+      <div class="sc-body">
+        <div class="sc-day muted">待初始化</div>
+        <p class="sc-now">还没有能算天数的锚点。记一条带开始日期的手术或治疗之后，这里会显示第 N 天——这个数字由你记的日期算出来，工作台不推断病程。</p>
+      </div>
+      <div class="sc-actions">${go('去记一条治疗 →', 'clinical', '治疗历程', 'primary')}${primerBtn}</div>
+    </section>`
+  }
+
+  const stage = o.subject?.stage ?? null
+  const next = (o.tasks?.list ?? []).filter((t) => t.dueOn)
+    .sort((a, b) => String(a.dueOn).localeCompare(String(b.dueOn)))[0] ?? null
+  const n = dayN(anchor.date)
+  const toNext = next ? dayN(next.dueOn) : null
+  const eyebrow = `D+${n} 状态卡 · ${next ? `距下次安排 ${toNext} 天` : '暂无已记的安排'}`
+
+  return `<section class="card status-card" aria-label="病程状态卡">
+    <div class="sc-head"><span class="eyebrow">${esc(eyebrow)}</span></div>
+    <div class="sc-body">
+      <div class="sc-day">第 ${n} 天<small>锚点 ${esc(longDate(anchor.date))}（${esc(anchor.kindLabel)} = Day 0）· 由档案日期算出，不手填</small></div>
+      <div class="sc-now">
+        ${stage ? `${pill(stage.label, 'rose')}<span>当前阶段 · ${esc(longDate(stage.declaredOn))} 由你选择</span>` : `${pill('未选择阶段', 'grey')}<span>阶段由你选，工作台不按日期推断</span>`}
+        <p>${next ? `下次：${esc(longDate(next.dueOn))} · ${esc(next.title)}${next.kindLabel ? ` · ${esc(next.kindLabel)}` : ''}` : '还没有记下带日期的安排。'}</p>
+      </div>
+    </div>
+    <div class="sc-actions">${go('看治疗历程（按次）→', 'clinical', '治疗历程', 'primary')}${primerBtn}</div>
+  </section>`
+}
+
 export function dashboard() {
   const o = d().overview
   if (!o) return `<p class="small-note">正在读取…</p>`
@@ -132,6 +179,7 @@ export function dashboard() {
   if (!hasAnything) {
     return `${head('今天，先照顾眼前的一件事。', SUBTITLES.dashboard, btn(`当前阶段：${stage?.label ?? '未选择'}`, 'stage-pick', 'soft'))}
       ${demoBanner()}
+      ${statusCard()}
       <section class="demo-cta" aria-label="模拟数据入口"><div><span class="eyebrow">先看看效果</span><b>加载一套模拟数据</b><p>会创建独立的演示档案，并自动打开「病情一图秀」。不写入你的真实档案。</p></div>${btn('加载完整示例', 'load-demo-showcase', 'primary')}</section>
       <section class="card" style="padding:26px">
         <h2>从三条里选一条，不需要都做完</h2>
@@ -147,6 +195,7 @@ export function dashboard() {
 
   return `${head('今天，先照顾眼前的一件事。', SUBTITLES.dashboard, btn(`当前阶段：${stage?.label ?? '未选择'}`, 'stage-pick', 'soft'))}
   ${demoBanner()}
+  ${statusCard()}
   ${docs.pendingCandidates ? `<div class="banner rose"><span><b>${docs.pendingCandidates} 项整理结果待核对</b>：核对只表示"转录检查过"，不等于医学审核。</span>${go('去核对', 'records', '整理草稿 / 核对', 'soft')}</div>` : ''}
   ${armStrip}
   ${marrowStrip}

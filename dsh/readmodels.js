@@ -819,8 +819,19 @@ export function overview(store, subjectId) {
   ).get(subjectId)
   const latestSymptom = symptoms[0] ?? null
 
+  /* 36 号 §2.6：状态卡的「第 N 天」必须由锚点日派生，前端不手填数字。
+     锚点优先取最早一次手术（乳腺的 Day 0 通常就是手术日）；没有手术记录时退到
+     最早一条有日期的治疗，并把 kindLabel 一并返回——卡片上要写明「锚点是哪一天、是什么」，
+     不能让用户以为这个数字是系统推断出来的病程结论。两条都没有 → null（前端显示「待初始化」）。 */
+  const dated = treatments.filter((t) => t.start).sort((a, b) => String(a.start).localeCompare(String(b.start)))
+  const anchorRow = dated.find((t) => t.kind === 'surgery') ?? dated[0] ?? null
+  const anchor = anchorRow
+    ? { kind: anchorRow.kind, kindLabel: anchorRow.kindLabel, date: anchorRow.start, name: anchorRow.name ?? null }
+    : null
+
   return {
     subject,
+    anchor,
     documents: documentCounts(documents),
     arm,
     metrics: {

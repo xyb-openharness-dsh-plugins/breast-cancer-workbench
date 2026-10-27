@@ -1,6 +1,6 @@
 {
   "name": "@pinkypal-dsh/breast-cancer-workbench",
-  "version": "0.12.0",
+  "version": "0.13.0",
   "description": "小粉宝：本机优先的乳腺癌病程整理与就诊准备工作台",
   "private": true,
   "type": "module",
@@ -37,7 +37,8 @@
     "test": "node --disable-warning=ExperimentalWarning --test test/*.test.mjs",
     "check": "node scripts/build-version.mjs --check && node scripts/check-syntax.mjs && node scripts/check-schema.mjs && node scripts/check-wording.mjs && node scripts/check-secrets.mjs && node scripts/build-client.mjs --check && node --disable-warning=ExperimentalWarning --test test/*.test.mjs && node scripts/check-package.mjs && node scripts/check-version.mjs",
     "pack:check": "npm pack --dry-run",
-    "probe:primer": "node scripts/probe-disease-primer.mjs"
+    "probe:primer": "node scripts/probe-disease-primer.mjs",
+    "check:primer-links": "node scripts/check-primer-links.mjs"
   },
   "dsh": {
     "bundle": {
