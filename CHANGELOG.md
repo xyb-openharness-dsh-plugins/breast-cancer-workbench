@@ -1,5 +1,16 @@
 # 变更记录
 
+## 0.13.2 — 2026-10-27（顶栏「对话」按钮改行动橙）
+
+- **入口突出**：顶栏那颗「对话」是调起 AI 会话的页面入口，但白底描边与旁边的「资料目录」完全同级，
+  真机上看不出哪个是 AI。改为**行动橙实心**（`var(--action)` #a8410a，与页面 `.primary` 主按钮同色），
+  文字与状态字改白、指示点改浅橙。用户原话：「AI对话按钮也改为橙色背景，突出一下」。
+- **两处一致**：`public/style.css` 与 `prototypes/v0.4/style.css` 加同一段 `#ready-session` 规则（原型与开发版必须同观感）；
+  宿主顶栏那颗「AI 对话」（`src/client.js` 的 `buttonStyle`）同步由品牌粉 `#c97991` 改为 `#a8410a`，两个入口同色。
+  `lib/client.js` 是 `src/client.js` 的构建产物，改源后必须重跑 `npm run build:client`，否则改动会被下次构建覆盖。
+- **版本**：0.13.1 → **0.13.2**，九处字面量一致；渠道仍 `prototype`。
+- **验证**：`npm run check` 全绿；1440×900 原型截图核对顶栏对比度与白字可读性。
+
 ## 0.13.1 — 2026-10-27（primer 模式件同步到 starter rc.2）
 
 - **修红**：`npm run check` 的「模式 disease-primer.js 与源一致」是红的——上游 starter 在 11:14 把 `assets/patterns/disease-primer.js`

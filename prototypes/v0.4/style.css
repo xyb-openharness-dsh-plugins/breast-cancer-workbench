@@ -78,6 +78,13 @@ small{font-size:12px;color:var(--muted)}
 .status i.grey{background:#c9bcc1}
 .status b{font-weight:600;color:var(--ink)}
 .status:hover{background:#fff;border-color:var(--line-strong)}
+/* 顶栏「对话」是调起 AI 会话的页面入口：白底描边与「资料目录」完全同级，
+   真机上看不出哪个是 AI。改为行动橙实心（与 .primary 同色），一眼能找到。
+   2026-10-27 用户原话：「AI对话按钮也改为橙色背景，突出一下」。 */
+#ready-session{background:var(--action);border-color:var(--action);color:#fff;font-weight:600}
+#ready-session:hover{background:var(--action-hover);border-color:var(--action-hover);color:#fff}
+#ready-session i,#ready-session i.grey{background:#ffd9c4}
+#ready-session b{color:#fff}
 #main{padding:26px 30px 44px;flex:1;max-width:1400px;width:100%;margin:0 auto}
 .footer{padding:14px 30px;border-top:1px solid var(--line);font-size:11.5px;color:var(--muted);display:flex;justify-content:space-between;gap:12px;background:#fff}
 
