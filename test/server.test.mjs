@@ -325,14 +325,14 @@ test('已打开的工作区：换目录会关掉旧库并切到新目录', async
 test('演示数据可以载入与清理，接口都返回最新状态', async () => {
   await withServer(async ({ call, root }) => {
     await call('/api/workspace', { method: 'POST', body: { path: join(root, '资料') } })
-    const seed = await call('/api/demo/seed', { method: 'POST', body: { id: 'DEMO-3' } })
+    const seed = await call('/api/demo/seed', { method: 'POST', body: { id: 'DEMO-1' } })
     assert.equal(seed.status, 200)
     assert.ok(seed.payload.counts.observations > 100)
 
     const o = await call('/api/overview')
     assert.ok(o.payload.metrics.withData > 0)
 
-    const cleared = await call('/api/demo/clear', { method: 'POST', body: { id: 'DEMO-3' } })
+    const cleared = await call('/api/demo/clear', { method: 'POST', body: { id: 'DEMO-1' } })
     assert.equal(cleared.status, 200)
     const after = await call('/api/overview')
     assert.equal(after.payload.metrics.withData, 0)

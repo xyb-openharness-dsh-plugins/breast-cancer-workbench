@@ -18,6 +18,10 @@ import { openStore } from './store.js'
 import { createImportService, ImportError, assertMedicalDate, DOCUMENT_KINDS } from './import.js'
 import { extractCandidates } from './labparse.js'
 import { resolveToken, maskToken, MINERU_MODEL_DEFAULT, MINERU_MODEL_FALLBACK, modelFallbackWorthy } from './mineru.js'
+import {
+  INTAKE_CATEGORIES, createIntakeTree, scanIntakeTree, categoryForRelPath, mimeFor, openFolder,
+  isSupportedFile, MAX_SCAN_FILES, MAX_UPLOAD_BATCH,
+} from './intake.js'
 import { seedDemo, listDemos, clearDemo, DEMO_DATASETS } from './demo.js'
 import {
   overview, documentList, documentCounts, metricSeries, metricCards, armHistory, armSeries,
@@ -30,6 +34,7 @@ import {
 
 const DB_NAME = 'pinkypal.sqlite'
 const DOC_DIR = 'documents'
+const PARSED_DIR = 'parsed'
 const ACTIVE_FILE = 'active.json'
 const MAX_UPLOAD = 40 * 1024 * 1024
 
@@ -113,7 +118,7 @@ export class Workbench {
    * 打开（必要时创建）一个工作区。目录已存在时只补库；不存在时按用户确认创建。
    * 返回 `created`，供界面如实显示"刚刚新建"而不是假装一直在。
    */
-  static async openWorkspace({ dir: inputDir, create = true, subjectName = '我' } = {}) {
+  static async openWorkspace({ dir: inputDir, create = true, subjectName = '我的', createSubject = true } = {}) {
     const dir = validateWorkspacePath(inputDir)
     let created = false
     try {
@@ -144,9 +149,12 @@ export class Workbench {
     }
     if (!subject) {
       const workspace = store.createWorkspace({ name: subjectName, settings: {} })
-      subject = store.createSubject({ workspaceId: workspace.id, displayName: subjectName, laterality: 'unknown' })
-      subjectId = subject.id
-      await writeJson(join(dir, ACTIVE_FILE), { subjectId })
+      // 一键建目录后先不自动造一个"我"：让用户填姓名与身份，避免把家属记成患者。
+      if (createSubject) {
+        subject = store.createSubject({ workspaceId: workspace.id, displayName: subjectName, laterality: 'unknown' })
+        subjectId = subject.id
+        await writeJson(join(dir, ACTIVE_FILE), { subjectId })
+      }
     }
 
     const settings = await readJson(join(dir, 'settings.json')) ?? {}
@@ -168,11 +176,22 @@ export class Workbench {
       settings: {
         mineruConsent: Boolean(this.#settings.mineruConsent),
         mineru: (() => {
-          const token = resolveToken()
-          return { configured: Boolean(token.token), source: token.source ?? null, masked: token.token ? maskToken(token.token) : null }
+          // 干净安装（没有 .secrets/mineru.json、没有环境变量）时不能因为“没配 Token”
+          // 让整个 /api/state 500：这里只报告未配置，解析时再给出可操作的提示。
+          try {
+            const token = resolveToken()
+            return { configured: Boolean(token.token), source: token.source ?? null, masked: token.token ? maskToken(token.token) : null }
+          } catch {
+            return { configured: false, source: null, masked: null }
+          }
         })(),
       },
       capabilities: { mineru: true, localText: true },
+      intake: {
+        categories: INTAKE_CATEGORIES,
+        maxScanFiles: MAX_SCAN_FILES,
+        maxUploadBatch: MAX_UPLOAD_BATCH,
+      },
     }
   }
 
@@ -185,6 +204,8 @@ export class Workbench {
     return rows.map((r) => ({
       id: r.id,
       displayName: r.display_name,
+      role: r.role,
+      roleLabel: r.role === 'caregiver' ? '家属/照护者' : r.role === 'patient' ? '患者本人' : '身份未填写',
       laterality: r.laterality,
       active: r.id === this.#subjectId,
       demo: demoBySubject.get(r.id) ?? null,
@@ -197,6 +218,139 @@ export class Workbench {
     this.#subjectId = subjectId
     writeJson(join(this.#dir, ACTIVE_FILE), { subjectId }).catch(() => {})
     return subjectState(this.#store, subjectId)
+  }
+
+  /**
+   * 在同一个资料库里新建一个档案并切过去。
+   * 不新建目录、不新建数据库：一个家庭一个库，多个人是多个 subject。
+   * 身份（role）必须显式给：患者本人 / 家属；不默认，避免把家属记成患者。
+   */
+  createSubject({ displayName, role, birthYear = null, sex = 'unknown', laterality = 'unknown', menopause = null } = {}) {
+    const name = String(displayName ?? '').trim()
+    if (!name) throw new AppError('MISSING_NAME', '请填写档案姓名', 400)
+    if (!['patient', 'caregiver'].includes(role)) {
+      throw new AppError('BAD_ROLE', '请选择使用者身份：患者本人或家属', 400)
+    }
+    const current = this.#store.getSubject(this.#subjectId)
+    const workspaceId = current?.workspace_id
+      ?? this.#store.db.prepare('SELECT id FROM workspace ORDER BY rowid LIMIT 1').get()?.id
+    if (!workspaceId) throw new AppError('NO_WORKSPACE', '资料目录还没打开', 409)
+
+    const year = Number.parseInt(birthYear, 10)
+    const subject = this.#store.createSubject({
+      workspaceId,
+      displayName: name,
+      role,
+      birthYear: Number.isFinite(year) ? year : null,
+      sex: ['female', 'male', 'other', 'unknown'].includes(sex) ? sex : 'unknown',
+      laterality: ['left', 'right', 'bilateral', 'unknown'].includes(laterality) ? laterality : 'unknown',
+      menopause: ['pre', 'peri', 'post', 'unknown'].includes(menopause) ? menopause : null,
+    })
+    this.#subjectId = subject.id
+    writeJson(join(this.#dir, ACTIVE_FILE), { subjectId: subject.id }).catch(() => {})
+    return subjectState(this.#store, subject.id)
+  }
+
+  /* ---------- 资料初始化 ---------- */
+
+  /** 一键建规范子目录树：只补缺，不覆盖、不删除。 */
+  async prepareIntake() {
+    return createIntakeTree(this.#dir)
+  }
+
+  /** 扫描 7 个分类目录，标出重复与不支持的文件；只读，不导入。 */
+  async scanIntake() {
+    const subjectId = this.requireSubject()
+    const tree = await scanIntakeTree(this.#dir)
+    const known = new Set(
+      this.#store.db.prepare('SELECT sha256 FROM document WHERE subject_id = ?').all(subjectId).map((row) => row.sha256),
+    )
+    for (const category of tree.categories) {
+      for (const file of category.files) {
+        if (!file.supported) continue
+        try {
+          file.sha256 = await sha256File(join(this.#dir, file.relPath))
+          file.duplicate = known.has(file.sha256)
+        } catch {
+          file.sha256 = null
+          file.duplicate = false
+        }
+      }
+    }
+    return { ...tree, dir: this.#dir }
+  }
+
+  /**
+   * 导入扫描到的文件。只接受分类目录内的相对路径，拒绝越界。
+   * 复用 importBytes：sha256 去重、40 MB 限制、资料类型校验都在那一层。
+   */
+  async importIntake({ files = [] } = {}) {
+    this.requireSubject()
+    if (!Array.isArray(files) || files.length === 0) {
+      throw new AppError('NO_FILES', '没有选择要导入的文件', 400)
+    }
+    if (files.length > MAX_SCAN_FILES) {
+      throw new AppError('TOO_MANY_FILES', `一次最多导入 ${MAX_SCAN_FILES} 个文件，请分批`, 400)
+    }
+    const results = []
+    for (const item of files) {
+      const relPath = String(item?.relPath ?? '').trim()
+      const category = categoryForRelPath(relPath)
+      if (!category) {
+        results.push({ relPath, ok: false, code: 'BAD_PATH', error: '只能导入资料目录里的分类文件' })
+        continue
+      }
+      const fullPath = resolve(this.#dir, relPath)
+      const categoryRoot = resolve(this.#dir, category.dir)
+      if (!assertInside(this.#dir, fullPath) || !assertInside(categoryRoot, fullPath) || fullPath === categoryRoot) {
+        results.push({ relPath, ok: false, code: 'BAD_PATH', error: '文件路径越界' })
+        continue
+      }
+      let info
+      try {
+        info = await stat(fullPath)
+      } catch {
+        results.push({ relPath, ok: false, code: 'MISSING_FILE', error: '文件不存在，可能已被移动' })
+        continue
+      }
+      if (!info.isFile()) {
+        results.push({ relPath, ok: false, code: 'NOT_FILE', error: '不是一个文件' })
+        continue
+      }
+      if (!isSupportedFile(fullPath)) {
+        results.push({ relPath, ok: false, code: 'UNSUPPORTED', error: '不支持的文件类型' })
+        continue
+      }
+      if (info.size > MAX_UPLOAD) {
+        results.push({ relPath, ok: false, code: 'FILE_TOO_LARGE', error: '单份原件上限 40 MB' })
+        continue
+      }
+      const bytes = await readFile(fullPath)
+      try {
+        const out = await this.importBytes({
+          bytes,
+          filename: item?.name || basename(fullPath),
+          kind: item?.kind || category.kind,
+          mime: mimeFor(fullPath),
+        })
+        results.push({ relPath, ok: true, document: out.document, duplicate: out.duplicate })
+      } catch (error) {
+        results.push({ relPath, ok: false, code: error?.code ?? 'IMPORT_FAILED', error: error?.message ?? String(error) })
+      }
+    }
+    return {
+      results,
+      imported: results.filter((r) => r.ok && !r.duplicate).length,
+      duplicates: results.filter((r) => r.ok && r.duplicate).length,
+      failed: results.filter((r) => !r.ok).length,
+    }
+  }
+
+  async openIntakeFolder({ path = null } = {}) {
+    const target = path ? resolve(this.#dir, String(path)) : this.#dir
+    if (!assertInside(this.#dir, target)) throw new AppError('BAD_PATH', '只能打开资料目录里的位置', 400)
+    await openFolder(target)
+    return { opened: target }
   }
 
   updateSubject({ displayName, laterality, birthYear } = {}) {
@@ -706,11 +860,17 @@ export class Workbench {
     }
   }
 
-  async parseDocument(documentId, { strategy = 'auto' } = {}) {
+  async parseDocument(documentId, { strategy = 'auto', force = false } = {}) {
     const doc = this.#store.db.prepare('SELECT * FROM document WHERE id = ? AND subject_id = ?')
       .get(documentId, this.requireSubject())
     if (!doc) throw new AppError('NO_DOCUMENT', '材料不存在', 404)
-    if (doc.status === 'parsed') throw new AppError('ALREADY_PARSED', '这份材料已经解析成功；要重来请先归档旧结果', 409)
+    if (doc.status === 'parsed' && !force) {
+      throw new AppError('ALREADY_PARSED', '这份材料已经解析成功；要重来请先归档旧结果', 409)
+    }
+    if (force) {
+      // 重新解析只重置状态，不删除已确认的候选/事实；同一文档同字段同值会去重。
+      this.#store.db.prepare("UPDATE document SET status = 'stored' WHERE id = ?").run(doc.id)
+    }
 
     const full = join(this.#dir, doc.storage_path)
     if (!assertInside(this.#dir, full)) throw new AppError('UNSAFE_PATH', '原件路径越界', 400)
@@ -735,6 +895,8 @@ export class Workbench {
     const job = this.#imports.startParse(doc.id, { engine: 'local-text' })
     try {
       const text = bytes.toString('utf8')
+      // 先留一份解析文本，旧版本已解析的材料也能重新生成后查看。
+      try { await this.#writeParsedText(doc.id, text) } catch { /* 预览文本失败不阻断解析 */ }
       const extracted = extractCandidates({ markdown: text })
       const inserted = this.#store.withTransaction(() => {
         this.#imports.finishParse(job.id, { engine: 'local-text' })
@@ -800,6 +962,8 @@ export class Workbench {
           filename: doc.filename,
           options: { modelVersion },
         })
+        // MinerU 的 markdown 留一份到本机，供“查看解析文本”核对。
+        try { await this.#writeParsedText(doc.id, result.markdown) } catch { /* 预览文本失败不阻断解析 */ }
         return {
           engine: `mineru:${modelVersion}`,
           modelVersion,
@@ -823,15 +987,62 @@ export class Workbench {
     throw lastError
   }
 
-  /** 原文对照：只读原件文本（文本类）；PDF 不给假文本，明确说需要解析器。 */
-  async documentText(documentId) {
+  /**
+   * 保存解析文本（MinerU markdown / 本机文本），供“查看解析文本”使用。
+   * 预览失败不阻断解析：解析成功本身更重要。
+   */
+  async #writeParsedText(documentId, text) {
+    if (typeof text !== 'string' || !text.trim()) return null
+    const dir = join(this.#dir, PARSED_DIR)
+    const full = join(dir, `${documentId}.md`)
+    if (!assertInside(this.#dir, full)) throw new AppError('UNSAFE_PATH', '解析文本路径越界', 400)
+    await mkdir(dir, { recursive: true })
+    await writeFile(full, text, { mode: 0o600 })
+    return `${PARSED_DIR}/${documentId}.md`
+  }
+
+  /** 原文对照：优先返回已保存的解析文本；文本类原件其次；PDF/图片没有解析文本时明确说清楚。 */
+  async documentText(documentId, { source = 'auto' } = {}) {
     const doc = this.#store.db.prepare('SELECT * FROM document WHERE id = ? AND subject_id = ?')
       .get(documentId, this.requireSubject())
     if (!doc) throw new AppError('NO_DOCUMENT', '材料不存在', 404)
+
+    if (source !== 'original') {
+      const parsedFull = join(this.#dir, PARSED_DIR, `${doc.id}.md`)
+      if (assertInside(this.#dir, parsedFull)) {
+        try {
+          const parsedText = await readFile(parsedFull, 'utf8')
+          if (parsedText.trim()) {
+            return {
+              available: true,
+              filename: doc.filename,
+              text: parsedText.slice(0, 200000),
+              source: 'parsed',
+            }
+          }
+        } catch {
+          /* 没有解析文本：继续走原件文本 */
+        }
+      }
+    }
+
     const full = join(this.#dir, doc.storage_path)
     if (!assertInside(this.#dir, full)) throw new AppError('UNSAFE_PATH', '原件路径越界', 400)
     const ext = extname(doc.filename).toLowerCase()
-    if (!['.txt', '.md', '.markdown', '.csv'].includes(ext)) {
+    const isText = ['.txt', '.md', '.markdown', '.csv'].includes(ext) || String(doc.mime ?? '').startsWith('text/')
+
+    if (source === 'parsed') {
+      return {
+        available: false,
+        reason: isText
+          ? '这份文本类材料还没有保存解析文本；重新解析一次即可生成。'
+          : '还没有保存这份材料的解析文本；重新解析一次即可生成可查看的识别文本。',
+        filename: doc.filename,
+        storagePath: doc.storage_path,
+      }
+    }
+
+    if (!isText) {
       return {
         available: false,
         reason: '这份原件不是纯文本，工作台不在本机渲染 PDF/图片；请用系统默认程序打开原件核对。',
@@ -840,7 +1051,7 @@ export class Workbench {
       }
     }
     const text = await readFile(full, 'utf8')
-    return { available: true, filename: doc.filename, text: text.slice(0, 200000) }
+    return { available: true, filename: doc.filename, text: text.slice(0, 200000), source: 'original' }
   }
 
   decideCandidate({ candidateId, action, occurredOn = null, patch = null }) {
@@ -1042,6 +1253,10 @@ function pickSubject(store) {
 
 async function fileExists(path) {
   try { await stat(path); return true } catch { return false }
+}
+
+async function sha256File(path) {
+  return createHash('sha256').update(await readFile(path)).digest('hex')
 }
 
 async function readJson(path) {

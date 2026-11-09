@@ -1,13 +1,13 @@
 /**
- * 五套演示画像（G2-5.2）。**全部是模拟数据**，名称、日期、数值均为构造，不对应任何真实患者。
+ * 两套演示画像（2026-10-28 用户确认：只保留 2 套，其余移除）。
+ * **全部是模拟数据**，名称、日期、数值均为构造，不对应任何真实患者。
  *
  * 三条硬要求（来自 docs/DEMO-CHECKLIST.md §G2-5.2）：
  * 1. 每套都带 `[UI DEMO]` 标记，界面与导出都不能被误认为真实病历；
  * 2. 清理只删 **manifest 登记的工作区**，不按"名字看起来像 demo"判断；
  * 3. 每套至少留一处**故意为空**的字段，用来验空态——不留空的 demo 验不出空态 bug。
  *
- * DEMO-2 是例外：它存在的意义就是"几乎没有资料"，所以不做 ≥120 条的体量要求。
- * 其余四套按 ≥120 条观测/测量构造，用于验列表滚动与图表重绘。
+ * DEMO-2 是刻意的空态样本；DEMO-1 是完整画像，用于验列表滚动与图表重绘。
  */
 import { createHash } from 'node:crypto'
 import { ImportService } from './import.js'
@@ -20,9 +20,6 @@ export const DEMO_AS_OF = '2026-10-17'
 export const DEMO_DATASETS = [
   { id: 'DEMO-1', label: '全程完整', note: '左 / 改良根治 + 腋窝清扫 / 内分泌治疗；16 项指标齐全' },
   { id: 'DEMO-2', label: '新确诊、资料极少', note: '右 / 未手术 / 刚确诊；以空态为主' },
-  { id: 'DEMO-3', label: '保乳 + 前哨淋巴结', note: '右 / 保乳 + SLNB / 放疗期间；臂围差长期 0.2–0.4' },
-  { id: 'DEMO-4', label: '双侧 + 复发', note: '双侧 / 两次手术 / 复发后治疗；侧别歧义、指标断线' },
-  { id: 'DEMO-5', label: '数据冲突 / 待核对', note: '左 / 根治 / 随访；同指标两法不同值、一条更正、一份待核对' },
 ]
 
 /* ---------------- 确定性伪随机（保证每次生成同一套数据） ---------------- */
@@ -255,217 +252,9 @@ function buildDemo2(store, { workspaceId, rnd }) {
   }
 }
 
-function buildDemo3(store, { workspaceId, rnd }) {
-  const subject = store.createSubject({
-    workspaceId, displayName: '保乳（模拟）', role: 'patient',
-    birthYear: 1968, sex: 'female', laterality: 'right', menopause: 'post',
-  })
-  store.addStage({ subjectId: subject.id, stage: 'radiotherapy', declaredOn: '2026-06-01' })
-
-  store.addTreatment({
-    subjectId: subject.id, kind: 'surgery', name: '右乳保乳 + 前哨淋巴结活检',
-    laterality: 'right', axillaryProcedure: 'slnb',
-    plannedStart: '2026-05-06', actualStart: '2026-05-06', actualEnd: '2026-05-06', status: 'completed', note: '模拟数据',
-  })
-  store.addTreatment({
-    subjectId: subject.id, kind: 'radio', name: '全乳放疗 25 次',
-    radiationField: '全乳', plannedStart: '2026-06-01', plannedEnd: '2026-07-10',
-    actualStart: '2026-06-01', actualEnd: '2026-07-10', status: 'completed', note: '模拟数据',
-  })
-
-  /* 各序列的最后一点都收在 2026-10-17 之前：模拟数据可以虚构，但不能虚构"还没发生的检查"。
-     放疗 5 月结束、随访到 10 月，6 个月窗口内每项都有 6–8 个点。 */
-  for (const [code, base, spread, dec] of [['wbc', 5.1, 1.8, 2], ['anc', 2.8, 1.2, 2], ['hgb', 121, 12, 0], ['plt', 210, 60, 0]]) {
-    series(store, subject.id, code, { start: '2026-05-06', stepDays: 21, count: 8, base, spread, dec, rnd })
-  }
-  // 放疗期间（6 月–7 月初）每周一次血常规：放疗期本就是每周查，这段密度比随访期高，且不画到未来
-  for (const [code, base, spread, dec] of [['wbc', 4.6, 1.4, 2], ['anc', 2.4, 1.0, 2], ['hgb', 118, 10, 0], ['plt', 196, 48, 0]]) {
-    series(store, subject.id, code, { start: '2026-06-01', stepDays: 7, count: 6, base, spread, dec, rnd })
-  }
-  series(store, subject.id, 'alt', { start: '2026-05-06', stepDays: 28, count: 6, base: 24, spread: 12, dec: 0, rnd })
-  series(store, subject.id, 'cr', { start: '2026-05-06', stepDays: 28, count: 6, base: 58, spread: 8, dec: 0, rnd })
-  series(store, subject.id, 'ca153', { start: '2026-05-08', stepDays: 30, count: 6, base: 13, spread: 3, dec: 1, method: 'ECLIA', rnd })
-  series(store, subject.id, 'cea', { start: '2026-05-08', stepDays: 30, count: 6, base: 1.8, spread: 0.5, dec: 1, method: 'ECLIA', rnd })
-  series(store, subject.id, 'lvef', { start: '2026-05-06', stepDays: 120, count: 2, base: 66, spread: 2, dec: 0, method: '超声心动图', rnd })
-  series(store, subject.id, 'bmd_ls', { start: '2026-08-01', stepDays: 1, count: 1, base: -0.6, spread: 0.1, dec: 1, method: 'DXA', rnd })
-  series(store, subject.id, 'weight', { start: '2026-05-06', stepDays: 21, count: 8, base: 59, spread: 1.2, dec: 1, rnd })
-  series(store, subject.id, 'bmi', { start: '2026-05-06', stepDays: 21, count: 8, base: 23.1, spread: 0.5, dec: 1, rnd })
-  series(store, subject.id, 'grip', { start: '2026-06-01', stepDays: 30, count: 5, base: 24, spread: 2, dec: 1, method: '握力计', rnd })
-  series(store, subject.id, 'arm_flex', { start: '2026-06-01', stepDays: 30, count: 5, base: 165, spread: 6, dec: 0, method: '量角器', rnd })
-  series(store, subject.id, 'arm_abd', { start: '2026-06-01', stepDays: 30, count: 5, base: 150, spread: 8, dec: 0, method: '量角器', rnd })
-  series(store, subject.id, 'drain_vol', { start: '2026-05-07', stepDays: 1, count: 3, base: 35, spread: 15, dec: 0, rnd })
-
-  // 没有腋窝清扫 → 臂围差长期 0.2–0.4
-  for (const [date, diff] of [
-    ['2026-06-01', 0.2], ['2026-06-20', 0.3], ['2026-07-10', 0.2],
-    ['2026-08-05', 0.4], ['2026-09-02', 0.3], ['2026-10-06', 0.2],
-  ]) {
-    fourPointSet(store, subject.id, date, diff, { rnd })
-  }
-
-  store.addSymptom({ subjectId: subject.id, code: 'skin_reaction', level: 1, occurredOn: '2026-06-25', bodySide: 'right', note: '照射区发红、发干（模拟）' })
-  return {
-    subject,
-    gaps: ['无腋窝清扫记录', '无内分泌治疗记录'],
-    note: '保乳 + SLNB，无腋窝清扫 → 臂围差长期 0.2–0.4',
-  }
-}
-
-function buildDemo4(store, { workspaceId, rnd }) {
-  const subject = store.createSubject({
-    workspaceId, displayName: '双侧复发（模拟）', role: 'patient',
-    birthYear: 1961, sex: 'female', laterality: 'bilateral', menopause: 'post',
-  })
-  store.addStage({ subjectId: subject.id, stage: 'metastatic', declaredOn: '2026-08-15' })
-
-  store.addTreatment({
-    subjectId: subject.id, kind: 'surgery', name: '左乳改良根治 + 腋窝清扫',
-    laterality: 'left', axillaryProcedure: 'alnd',
-    actualStart: '2024-03-11', actualEnd: '2024-03-11', status: 'completed', note: '模拟数据',
-  })
-  store.addTreatment({
-    subjectId: subject.id, kind: 'surgery', name: '右乳改良根治 + 腋窝清扫',
-    laterality: 'right', axillaryProcedure: 'alnd',
-    actualStart: '2025-09-02', actualEnd: '2025-09-02', status: 'completed', note: '模拟数据',
-  })
-  store.addTreatment({
-    subjectId: subject.id, kind: 'chemo', name: '多西他赛 + 卡铂',
-    actualStart: '2026-08-20', status: 'ongoing', note: '模拟数据',
-  })
-  store.addTreatment({
-    subjectId: subject.id, kind: 'targeted', name: '靶向治疗（模拟）',
-    actualStart: '2026-08-20', status: 'ongoing', note: '模拟数据',
-  })
-
-  for (const [code, base, spread, dec] of [['wbc', 3.9, 2.2, 2], ['anc', 1.9, 1.4, 2], ['hgb', 104, 14, 0], ['plt', 175, 70, 0]]) {
-    series(store, subject.id, code, { start: '2024-04-02', stepDays: 60, count: 10, base, spread, dec, rnd })
-  }
-  series(store, subject.id, 'alt', { start: '2024-04-02', stepDays: 60, count: 10, base: 32, spread: 16, dec: 0, rnd })
-  series(store, subject.id, 'cr', { start: '2024-04-02', stepDays: 60, count: 10, base: 68, spread: 12, dec: 0, rnd })
-  /* 复发后化疗期（2026-08 起）的血常规：治疗期本来就是 1–2 周一次，不能沿用随访期的 60 天间隔。
-     原 60 天序列保留——它记录的是 2024–2026 年初的老过程，加密它等于把老数据改密。 */
-  for (const [code, base, spread, dec] of [['wbc', 3.2, 1.6, 2], ['anc', 1.5, 1.1, 2], ['hgb', 98, 12, 0], ['plt', 138, 55, 0]]) {
-    series(store, subject.id, code, { start: '2026-08-20', stepDays: 14, count: 5, base, spread, dec, rnd })
-  }
-  // 指标断线：同指标换了方法（前 5 次 ECLIA，后 5 次 CLIA），前后不可比
-  series(store, subject.id, 'ca153', { start: '2024-04-02', stepDays: 90, count: 5, base: 22, spread: 6, dec: 1, method: 'ECLIA', rnd })
-  series(store, subject.id, 'ca153', { start: '2025-09-10', stepDays: 90, count: 5, base: 34, spread: 8, dec: 1, method: 'CLIA', rnd })
-  series(store, subject.id, 'cea', { start: '2024-04-02', stepDays: 90, count: 10, base: 3.2, spread: 1.4, dec: 1, method: 'ECLIA', rnd })
-  series(store, subject.id, 'lvef', { start: '2024-03-20', stepDays: 210, count: 4, base: 61, spread: 5, dec: 0, method: '超声心动图', rnd })
-  series(store, subject.id, 'bmd_ls', { start: '2024-06-01', stepDays: 420, count: 2, base: -1.8, spread: 0.3, dec: 1, method: 'DXA', rnd })
-  series(store, subject.id, 'weight', { start: '2024-04-02', stepDays: 60, count: 10, base: 61, spread: 2.2, dec: 1, rnd })
-  series(store, subject.id, 'bmi', { start: '2024-04-02', stepDays: 60, count: 10, base: 24.8, spread: 0.8, dec: 1, rnd })
-  // 复发化疗期的标志物与体重：按周期（3 周）查，最后一次落在 10-01，不画到未来
-  series(store, subject.id, 'ca153', { start: '2026-08-20', stepDays: 21, count: 3, base: 34, spread: 8, dec: 1, method: 'CLIA', rnd })
-  series(store, subject.id, 'cea', { start: '2026-08-20', stepDays: 21, count: 3, base: 3.2, spread: 1.0, dec: 1, method: 'ECLIA', rnd })
-  series(store, subject.id, 'weight', { start: '2026-08-20', stepDays: 21, count: 3, base: 59, spread: 1.8, dec: 1, rnd })
-  series(store, subject.id, 'bmi', { start: '2026-08-20', stepDays: 21, count: 3, base: 23.9, spread: 0.6, dec: 1, rnd })
-  series(store, subject.id, 'grip', { start: '2026-08-20', stepDays: 14, count: 5, base: 17, spread: 3, dec: 1, method: '握力计', rnd })
-  series(store, subject.id, 'arm_flex', { start: '2026-08-20', stepDays: 14, count: 5, base: 132, spread: 12, dec: 0, method: '量角器', rnd })
-  series(store, subject.id, 'arm_abd', { start: '2026-08-20', stepDays: 14, count: 5, base: 118, spread: 14, dec: 0, method: '量角器', rnd })
-
-  // 故意不建 arm_set：laterality='bilateral' 时无法判定患健侧，必须由用户先选侧（A9 的前置）
-  store.addSymptom({ subjectId: subject.id, code: 'pain', level: 2, occurredOn: '2026-09-30', bodySide: 'bilateral', note: '模拟' })
-  return {
-    subject,
-    gaps: ['侧别未细分：双侧档案无法判定患健侧，左上肢/右上肢需分别选侧', '无四点位测量（需先选侧）'],
-    note: '双侧 + 两次手术 + 复发；ca153 疗法变更导致断线',
-  }
-}
-
-function buildDemo5(store, { workspaceId, rnd }) {
-  const subject = store.createSubject({
-    workspaceId, displayName: '随访待核对（模拟）', role: 'patient',
-    birthYear: 1970, sex: 'female', laterality: 'left', menopause: 'post',
-  })
-  store.addStage({ subjectId: subject.id, stage: 'followup', declaredOn: '2026-09-01' })
-
-  store.addTreatment({
-    subjectId: subject.id, kind: 'surgery', name: '左乳根治术',
-    laterality: 'left', axillaryProcedure: 'alnd',
-    actualStart: '2025-04-08', actualEnd: '2025-04-08', status: 'completed', note: '模拟数据',
-  })
-  store.addTreatment({
-    subjectId: subject.id, kind: 'endocrine', name: '他莫昔芬（计划 5 年）',
-    actualStart: '2025-05-20', status: 'ongoing', note: '模拟数据',
-  })
-
-  for (const [code, base, spread, dec] of [['wbc', 5.4, 1.4, 2], ['anc', 3.0, 0.9, 2], ['hgb', 126, 10, 0], ['plt', 225, 45, 0]]) {
-    series(store, subject.id, code, { start: '2025-05-06', stepDays: 30, count: 8, base, spread, dec, rnd })
-  }
-  series(store, subject.id, 'alt', { start: '2025-05-06', stepDays: 30, count: 8, base: 22, spread: 10, dec: 0, rnd })
-  series(store, subject.id, 'cr', { start: '2025-05-06', stepDays: 30, count: 8, base: 60, spread: 7, dec: 0, rnd })
-  series(store, subject.id, 'ca153', { start: '2025-05-06', stepDays: 30, count: 11, base: 15, spread: 4, dec: 1, method: 'ECLIA', rnd })
-  series(store, subject.id, 'cea', { start: '2025-05-06', stepDays: 30, count: 11, base: 1.9, spread: 0.6, dec: 1, method: 'ECLIA', rnd })
-  series(store, subject.id, 'lvef', { start: '2025-04-20', stepDays: 180, count: 3, base: 64, spread: 3, dec: 0, method: '超声心动图', rnd })
-  series(store, subject.id, 'bmd_ls', { start: '2025-06-01', stepDays: 400, count: 2, base: -1.1, spread: 0.2, dec: 1, method: 'DXA', rnd })
-  series(store, subject.id, 'weight', { start: '2025-05-06', stepDays: 30, count: 10, base: 64, spread: 1.4, dec: 1, rnd })
-  series(store, subject.id, 'bmi', { start: '2025-05-06', stepDays: 30, count: 10, base: 25.2, spread: 0.6, dec: 1, rnd })
-  series(store, subject.id, 'grip', { start: '2025-05-20', stepDays: 20, count: 8, base: 21, spread: 2.5, dec: 1, method: '握力计', rnd })
-  series(store, subject.id, 'arm_flex', { start: '2025-05-20', stepDays: 20, count: 8, base: 152, spread: 8, dec: 0, method: '量角器', rnd })
-  series(store, subject.id, 'arm_abd', { start: '2025-05-20', stepDays: 20, count: 8, base: 134, spread: 9, dec: 0, method: '量角器', rnd })
-  series(store, subject.id, 'drain_vol', { start: '2025-04-09', stepDays: 1, count: 2, base: 40, spread: 12, dec: 0, rnd })
-  /* 随访期延续（2026-04 起）：原序列停在 2026 年初，最近 6 个月窗口里一个点都没有，
-     一图秀只会显示空。老序列不加密——保留它才能看出"这是长期随访的档案"。 */
-  for (const [code, base, spread, dec] of [['wbc', 5.4, 1.4, 2], ['anc', 3.0, 0.9, 2], ['hgb', 126, 10, 0], ['plt', 225, 45, 0]]) {
-    series(store, subject.id, code, { start: '2026-04-20', stepDays: 30, count: 7, base, spread, dec, rnd })
-  }
-  series(store, subject.id, 'alt', { start: '2026-04-20', stepDays: 30, count: 7, base: 22, spread: 10, dec: 0, rnd })
-  series(store, subject.id, 'cr', { start: '2026-04-20', stepDays: 30, count: 7, base: 60, spread: 7, dec: 0, rnd })
-  series(store, subject.id, 'ca153', { start: '2026-04-06', stepDays: 30, count: 7, base: 15, spread: 4, dec: 1, method: 'ECLIA', rnd })
-  series(store, subject.id, 'cea', { start: '2026-04-06', stepDays: 30, count: 7, base: 1.9, spread: 0.6, dec: 1, method: 'ECLIA', rnd })
-  series(store, subject.id, 'weight', { start: '2026-04-06', stepDays: 30, count: 7, base: 64, spread: 1.4, dec: 1, rnd })
-  series(store, subject.id, 'bmi', { start: '2026-04-06', stepDays: 30, count: 7, base: 25.2, spread: 0.6, dec: 1, rnd })
-
-  for (const [date, diff] of [['2025-06-10', 1.1], ['2026-01-15', 1.6], ['2026-09-08', 1.9]]) {
-    fourPointSet(store, subject.id, date, diff, { rnd })
-  }
-
-  // 一条更正记录：体重先记 63.5，后更正为 64.2（新增版本，不覆盖）
-  const original = store.addRecord({ subjectId: subject.id, kind: 'measurement', occurredOn: '2026-09-08', sourceKind: 'patient_reported', note: '模拟：记录时抄错' })
-  store.addObservation({ subjectId: subject.id, metricCode: 'weight', observedOn: '2026-09-08', value: 63.5, unit: 'kg', recordId: original.id })
-  const corrected = store.supersedeRecord(original.id, { note: '模拟：更正为 64.2（原 63.5 抄错）' })
-  store.addObservation({ subjectId: subject.id, metricCode: 'weight', observedOn: '2026-09-08', value: 64.2, unit: 'kg', recordId: corrected.id })
-
-  // 一份待核对材料：同字段两个不同值（方法不同）、缺单位、低把握度
-  const importer = new ImportService(store)
-  const lab = importer.importDocument({
-    subjectId: subject.id, kind: 'lab', filename: '2026-09-28-复查化验.pdf',
-    sha256: fakeSha('DEMO-5 lab'), storagePath: 'docs/demo5-lab-20260928.pdf',
-    mime: 'application/pdf', bytes: 154332, pageCount: 1,
-  })
-  const labJob = importer.startParse(lab.document.id, { engine: 'demo' })
-  importer.finishParse(labJob.id)
-  for (const c of [
-    { field: 'metric:ca153', valueText: '18.6', valueNum: 18.6, unit: 'U/mL', method: 'ECLIA', pageRef: 'p1', confidence: 0.91 },
-    { field: 'metric:ca153', valueText: '24.1', valueNum: 24.1, unit: 'U/mL', method: 'CLIA', pageRef: 'p1 附页', confidence: 0.74 },
-    { field: 'metric:alt', valueText: '31', valueNum: 31, unit: null, method: null, pageRef: 'p1', confidence: 0.86 },
-    { field: 'metric:hgb', valueText: '118', valueNum: 118, unit: 'g/L', method: '血细胞分析', pageRef: 'p1', confidence: 0.42 },
-    { field: 'treatment:endocrine', valueText: '他莫昔芬 20mg 每日', method: null, pageRef: 'p1', confidence: 0.8 },
-  ]) importer.addCandidate({ documentId: lab.document.id, ...c })
-
-  // 一份解析失败的材料：原件还在列表里，可重试，不产生候选
-  const scan = importer.importDocument({
-    subjectId: subject.id, kind: 'discharge', filename: '2026-08-30-出院记录-扫描件.jpg',
-    sha256: fakeSha('DEMO-5 scan'), storagePath: 'docs/demo5-discharge-20260830.jpg',
-    mime: 'image/jpeg', bytes: 2331120, pageCount: 1,
-  })
-  const scanJob = importer.startParse(scan.document.id, { engine: 'demo' })
-  importer.failParse(scanJob.id, { errorCode: 'blurry_scan', errorText: '图像模糊，未能识别文字（模拟）' })
-
-  return {
-    subject,
-    gaps: ['有一条记录已更正（旧版本保留）', '一份材料解析失败', '一份材料待核对：同字段两个不同值'],
-    note: '数据冲突画像：同指标两法不同值 + 更正链 + 待核对材料',
-  }
-}
-
 const BUILDERS = {
   'DEMO-1': buildDemo1,
   'DEMO-2': buildDemo2,
-  'DEMO-3': buildDemo3,
-  'DEMO-4': buildDemo4,
-  'DEMO-5': buildDemo5,
 }
 
 /* ---------------- 写入 / 清理 ---------------- */

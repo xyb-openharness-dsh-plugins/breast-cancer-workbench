@@ -10,13 +10,19 @@
  * 2. **不猜解析结果**：拿不到 `full.md` 就是失败，不返回半份数据当成功；
  * 3. **解析失败不产生候选**——调用方（ImportService）拿到异常后走 `failParse`，原件留着可重试（A2）。
  */
-import { readFileSync } from 'node:fs'
+import { chmodSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
+import { dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { readZip } from '../lib/zip.js'
 
 export const MINERU_BASE_URL = 'https://mineru.net/api/v4'
 /** 本地私密文件：已进 .gitignore，不进包（package.json 的 files 不含 .secrets） */
 export const MINERU_SECRET_FILE = fileURLToPath(new URL('../.secrets/mineru.json', import.meta.url))
+/**
+ * 随包公益 Key：发布时由 scripts/inject-mineru-public.mjs 从 .secrets 或环境变量生成，
+ * 生成物进包但不进 git。显式/本地文件/env 都没有时才用它，避免本机配置被随包 Key 盖住。
+ */
+export const MINERU_PUBLIC_FILE = fileURLToPath(new URL('./mineru-public.json', import.meta.url))
 
 export class MineruError extends Error {
   constructor(code, message, detail = null) {
@@ -35,13 +41,14 @@ export function maskToken(token) {
 }
 
 /**
- * Token 解析优先级：显式传入 > `.secrets/mineru.json` > 环境变量 `MINERU_TOKEN`。
+ * Token 解析优先级：显式传入 > `.secrets/mineru.json` > 环境变量 `MINERU_TOKEN`
+ * > 随包公益 Key（`dsh/mineru-public.json`，发布时生成，不进 git）。
  * 文件优先、env 次之（2026-10-22 统一口径）：界面里保存的 Token 永远生效，
  * env 只在文件缺失时兜底——否则一条遗留的过期 env 会长期盖住新存的 Token，
  * 表现为"换了 Token 还是 401"，极难自查。
- * 三处都没有就报 `NO_TOKEN`，**不静默用匿名请求**（那只会得到一个看不懂的 401）。
+ * 四处都没有就报 `NO_TOKEN`，**不静默用匿名请求**（那只会得到一个看不懂的 401）。
  */
-export function resolveToken({ token = null, env = process.env, secretFile = MINERU_SECRET_FILE } = {}) {
+export function resolveToken({ token = null, env = process.env, secretFile = MINERU_SECRET_FILE, publicFile = MINERU_PUBLIC_FILE } = {}) {
   if (token?.trim()) return { token: token.trim(), source: 'explicit' }
   try {
     const parsed = JSON.parse(readFileSync(secretFile, 'utf8'))
@@ -50,10 +57,44 @@ export function resolveToken({ token = null, env = process.env, secretFile = MIN
     /* 文件不存在或不是 JSON 都视为"没配"，不掩盖真正的问题 */
   }
   if (env?.MINERU_TOKEN?.trim()) return { token: env.MINERU_TOKEN.trim(), source: 'env:MINERU_TOKEN' }
+  try {
+    const parsed = JSON.parse(readFileSync(publicFile, 'utf8'))
+    if (parsed?.token?.trim()) return { token: parsed.token.trim(), source: 'bundled-public' }
+  } catch {
+    /* 没有随包公益 Key：本地开发常见，继续报 NO_TOKEN */
+  }
   throw new MineruError(
     'NO_TOKEN',
     '没有 MinerU Token：设置环境变量 MINERU_TOKEN，或写 .secrets/mineru.json（{"token": "sk-..."}）。该文件已在 .gitignore 里。',
   )
+}
+
+/**
+ * 保存 Token 到 `.secrets/mineru.json`：原子替换、权限 600。
+ * 只返回来源，不回显原文；界面只能看到掩码。
+ */
+export function saveMineruToken(token, { secretFile = MINERU_SECRET_FILE } = {}) {
+  const value = String(token ?? '').trim()
+  if (!/^sk-[A-Za-z0-9_-]{16,}$/.test(value)) {
+    throw new MineruError('BAD_TOKEN', 'Token 应以 sk- 开头，且长度足够（至少 19 个字符）')
+  }
+  mkdirSync(dirname(secretFile), { recursive: true, mode: 0o700 })
+  const temp = `${secretFile}.tmp-${process.pid}-${Date.now()}`
+  writeFileSync(temp, `${JSON.stringify({ token: value }, null, 2)}\n`, { mode: 0o600 })
+  chmodSync(temp, 0o600)
+  renameSync(temp, secretFile)
+  chmodSync(secretFile, 0o600)
+  return { source: '.secrets/mineru.json' }
+}
+
+/** 清除本机保存的 Token；文件不存在视为已清除。环境变量/随包 Key 不受影响。 */
+export function clearMineruToken({ secretFile = MINERU_SECRET_FILE } = {}) {
+  try {
+    unlinkSync(secretFile)
+  } catch (error) {
+    if (error?.code !== 'ENOENT') throw error
+  }
+  return { cleared: true }
 }
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))

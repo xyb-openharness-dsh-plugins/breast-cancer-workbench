@@ -349,6 +349,34 @@ test('非文本原件不假装能读：documentText 明确返回不可用', asyn
   })
 });
 
+test('解析文本会保存；旧材料可以强制重新解析后查看', async () => {
+  await withWorkbench(async ({ workbench }) => {
+    const { document } = await workbench.importBytes({
+      bytes: Buffer.from('报告日期：2026-09-12\n| 项目 | 结果 | 单位 |\n| --- | --- | --- |\n| CA15-3 | 18.6 | U/mL |\n', 'utf8'),
+      filename: '化验.md',
+      kind: 'lab',
+      mime: 'text/markdown',
+    })
+
+    await workbench.parseDocument(document.id, { strategy: 'local' })
+    const parsed = await workbench.documentText(document.id, { source: 'parsed' })
+    assert.equal(parsed.available, true)
+    assert.equal(parsed.source, 'parsed')
+    assert.match(parsed.text, /CA15-3/)
+
+    const original = await workbench.documentText(document.id, { source: 'original' })
+    assert.equal(original.available, true)
+    assert.equal(original.source, 'original')
+
+    await assert.rejects(
+      () => workbench.parseDocument(document.id, { strategy: 'local' }),
+      /已经解析成功/,
+    )
+    const again = await workbench.parseDocument(document.id, { strategy: 'local', force: true })
+    assert.equal(again.engine, 'local-text')
+  })
+})
+
 test('没有勾选同意就不上云解析：报 CONSENT_REQUIRED 并保留原件', async () => {
   await withWorkbench(async ({ workbench }) => {
     const { document } = await workbench.importBytes({

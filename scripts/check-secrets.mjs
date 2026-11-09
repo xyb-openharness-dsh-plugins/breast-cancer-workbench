@@ -17,7 +17,9 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const SELF = resolve(fileURLToPath(import.meta.url))
 
 const SKIP_DIRS = new Set(['.git', 'node_modules', '.secrets', 'coverage', 'tmp'])
-const SKIP_FILES = new Set(['package-lock.json'])
+// mineru-public.json 是发布打包时由 .secrets/环境变量生成的随包公益 Key，不是个人密钥；
+// 它只在 pack 期间存在（pack:release 后删除），且已进 .gitignore。
+const SKIP_FILES = new Set(['package-lock.json', 'mineru-public.json'])
 const BINARY_EXT = /\.(png|jpe?g|gif|webp|ico|zip|pdf|sqlite3?|sqlite-wal|sqlite-shm|tgz|woff2?|ttf|mp4|mov)$/i
 const MAX_BYTES = 2 * 1024 * 1024
 

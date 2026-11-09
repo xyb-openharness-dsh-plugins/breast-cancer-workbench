@@ -25,6 +25,8 @@ import { homedir } from 'node:os'
 import { dirname, extname, join, normalize, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { AppError, Workbench, MAX_UPLOAD } from './workbench.js'
+import { defaultWorkspaceRoot, createIntakeTree, openFolder, MAX_UPLOAD_BATCH } from './intake.js'
+import { saveMineruToken, clearMineruToken } from './mineru.js'
 import { ImportError } from './import.js'
 import { CTCAE_META } from './ctcae.js'
 import { AGENT_SCOPES, buildAgentContext } from './agent-context.js'
@@ -139,6 +141,8 @@ const API_KNOWN = {
     /^\/api\/questions\/[^/]+$/,
     /^\/api\/viewpoints\/[^/]+\/withdraw$/,
     /^\/api\/demo\/(seed|clear)$/,
+    /^\/api\/(subjects|intake\/(prepare|scan|import|open-folder))$/,
+    /^\/api\/settings\/mineru-token$/,
   ],
   PATCH: [/^\/api\/questions\/[^/]+$/],
 }
@@ -389,7 +393,7 @@ export class WorkbenchServer {
       const { workbench, created, subject } = await Workbench.openWorkspace({
         dir: body.path,
         create: body.create !== false,
-        subjectName: body.subjectName ?? '我',
+        subjectName: body.subjectName ?? '我的',
       })
       if (this.workbench && this.workbench !== workbench) this.workbench.store.close()
       this.workbench = workbench
@@ -398,6 +402,35 @@ export class WorkbenchServer {
       sendJson(res, 200, {
         ready: true,
         created,
+        subject: workbench.state().subject ?? subject,
+        state: { ...workbench.state(), version: this.version },
+      })
+      return
+    }
+
+    if (method === 'POST' && path === '/api/intake/prepare') {
+      const body = await readJsonBody(req)
+      if (!body.path && wb) {
+        const tree = await wb.prepareIntake()
+        sendJson(res, 200, { ready: true, dir: wb.dir, tree, state: { ...wb.state(), version: this.version } })
+        return
+      }
+      const root = body.path ? String(body.path) : defaultWorkspaceRoot()
+      const { workbench, created, subject } = await Workbench.openWorkspace({
+        dir: root,
+        create: true,
+        subjectName: body.subjectName ?? '我的',
+        createSubject: false,
+      })
+      if (this.workbench && this.workbench !== workbench) this.workbench.store.close()
+      this.workbench = workbench
+      await this.onWorkspace?.(workbench.dir ?? root)
+      const tree = await createIntakeTree(workbench.dir ?? root)
+      sendJson(res, 200, {
+        ready: true,
+        created,
+        dir: workbench.dir ?? root,
+        tree,
         subject: workbench.state().subject ?? subject,
         state: { ...workbench.state(), version: this.version },
       })
@@ -416,6 +449,30 @@ export class WorkbenchServer {
     }
 
     /* ----- 档案与设置 ----- */
+
+    if (method === 'POST' && path === '/api/subjects') {
+      const body = await readJsonBody(req)
+      const subject = wb.createSubject(body)
+      sendJson(res, 201, { subject, state: { ...wb.state(), version: this.version } })
+      return
+    }
+
+    if (method === 'POST' && path === '/api/intake/scan') {
+      sendJson(res, 200, await wb.scanIntake())
+      return
+    }
+
+    if (method === 'POST' && path === '/api/intake/import') {
+      const body = await readJsonBody(req)
+      sendJson(res, 200, { ...(await wb.importIntake(body)), documents: wb.documents() })
+      return
+    }
+
+    if (method === 'POST' && path === '/api/intake/open-folder') {
+      const body = await readJsonBody(req)
+      sendJson(res, 200, await wb.openIntakeFolder(body))
+      return
+    }
 
     if (method === 'POST' && path === '/api/subject') {
       const body = await readJsonBody(req)
@@ -438,6 +495,19 @@ export class WorkbenchServer {
       if (body.mineruConsent !== undefined) patch.mineruConsent = Boolean(body.mineruConsent)
       const settings = wb.setSettings(patch)
       sendJson(res, 200, { settings: { mineruConsent: Boolean(settings.mineruConsent), ...wb.state().settings } })
+      return
+    }
+
+    if (method === 'POST' && path === '/api/settings/mineru-token') {
+      const body = await readJsonBody(req)
+      try {
+        if (body?.clear === true || !String(body?.token ?? '').trim()) clearMineruToken()
+        else saveMineruToken(body.token)
+      } catch (error) {
+        throw new AppError(error?.code ?? 'BAD_TOKEN', error?.message ?? 'Token 保存失败', 400)
+      }
+      // 只回掩码与来源，不回原文
+      sendJson(res, 200, { settings: wb.state().settings })
       return
     }
 
@@ -484,14 +554,14 @@ export class WorkbenchServer {
     let m = path.match(/^\/api\/documents\/([^/]+)\/parse$/)
     if (method === 'POST' && m) {
       const body = await readJsonBody(req)
-      const result = await wb.parseDocument(m[1], { strategy: body.strategy ?? 'auto' })
+      const result = await wb.parseDocument(m[1], { strategy: body.strategy ?? 'auto', force: body.force === true })
       sendJson(res, 200, { ...result, draft: wb.draft() })
       return
     }
 
     m = path.match(/^\/api\/documents\/([^/]+)\/text$/)
     if (method === 'GET' && m) {
-      sendJson(res, 200, await wb.documentText(m[1]))
+      sendJson(res, 200, await wb.documentText(m[1], { source: url.searchParams.get('source') ?? 'auto' }))
       return
     }
 

@@ -163,6 +163,8 @@ const SOURCE_KIND_LABELS = {
 }
 
 const ROLE_LABELS = { patient: '本人', caregiver: '照护者', clinician: '治疗团队' }
+/** 档案身份：界面统一说"患者本人 / 家属"，与记录发言人的措辞分开。 */
+const SUBJECT_ROLE_LABELS = { patient: '患者本人', caregiver: '家属/照护者' }
 
 const num = (v, dec = 1) => (v === null || v === undefined ? null : Number(Number(v).toFixed(dec)))
 
@@ -178,7 +180,7 @@ export function subjectState(store, subjectId) {
     id: subject.id,
     displayName: subject.display_name,
     role: subject.role,
-    roleLabel: ROLE_LABELS[subject.role] ?? subject.role,
+    roleLabel: SUBJECT_ROLE_LABELS[subject.role] ?? ROLE_LABELS[subject.role] ?? subject.role,
     laterality: subject.laterality,
     lateralityLabel: { left: '左', right: '右', bilateral: '双侧', unknown: '未声明' }[subject.laterality] ?? '未声明',
     stage: stageRow

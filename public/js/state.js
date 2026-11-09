@@ -39,7 +39,8 @@ export async function boot() {
     S.state = state
     S.version = state.version ?? S.version
     S.ready = Boolean(state.ready)
-    if (S.ready) await loadAll()
+    // 一键建目录后、还没建档案时不拉读模型：接口会按“没有档案”返回 409。
+    if (S.ready && state.subject) await loadAll()
     return state
   })()
   return bootPromise
@@ -102,7 +103,7 @@ export async function loadAll() {
 }
 
 export async function refresh() {
-  if (!S.ready) return
+  if (!S.ready || !S.state?.subject) return
   await loadAll()
 }
 

@@ -1,6 +1,7 @@
 /**
- * 五套演示画像（G2-5.2）。验的是"边界画像是否真的存在"，不是"数据能不能插进去"：
- * 体量、故意留空、侧别歧义、更正链、待核对材料、manifest 清理、确定性。
+ * 两套演示画像（2026-10-28 起只保留 DEMO-1 / DEMO-2）。
+ * 验的是"边界画像是否真的存在"，不是"数据能不能插进去"：
+ * 体量、故意留空、manifest 清理、确定性。
  */
 import test from 'node:test'
 import assert from 'node:assert/strict'
@@ -14,13 +15,13 @@ const rows = (store, subjectId) => store.db
   .prepare('SELECT (SELECT COUNT(*) FROM observation WHERE subject_id = ?) + (SELECT COUNT(*) FROM measurement WHERE subject_id = ?) AS n')
   .get(subjectId, subjectId).n
 
-test('五套画像都能独立生成，manifest 各一条', () => {
+test('两套画像都能独立生成，manifest 各一条', () => {
   const store = openStore({ file: ':memory:' })
   const manifests = seedAllDemos(store)
-  assert.equal(manifests.length, 5)
-  assert.deepEqual(manifests.map((m) => m.datasetId).sort(), ['DEMO-1', 'DEMO-2', 'DEMO-3', 'DEMO-4', 'DEMO-5'])
+  assert.equal(manifests.length, 2)
+  assert.deepEqual(manifests.map((m) => m.datasetId).sort(), ['DEMO-1', 'DEMO-2'])
   const listed = listDemos(store)
-  assert.equal(listed.length, 5)
+  assert.equal(listed.length, 2)
   for (const m of listed) {
     assert.equal(m.marker, DEMO_MARKER)
     assert.ok(m.workspaceName.startsWith(DEMO_MARKER), '工作区名必须带标记')
@@ -28,13 +29,11 @@ test('五套画像都能独立生成，manifest 各一条', () => {
   }
 })
 
-test('四套完整画像体量 ≥120 条观测/测量；DEMO-2 是刻意的空态', () => {
+test('DEMO-1 完整画像体量 ≥120 条观测/测量；DEMO-2 是刻意的空态', () => {
   const store = openStore({ file: ':memory:' })
   const manifests = seedAllDemos(store)
   const by = Object.fromEntries(manifests.map((m) => [m.datasetId, m]))
-  for (const id of ['DEMO-1', 'DEMO-3', 'DEMO-4', 'DEMO-5']) {
-    assert.ok(rows(store, by[id].subjectId) >= 120, `${id} 只有 ${rows(store, by[id].subjectId)} 条`)
-  }
+  assert.ok(rows(store, by['DEMO-1'].subjectId) >= 120, `DEMO-1 只有 ${rows(store, by['DEMO-1'].subjectId)} 条`)
   const empty = by['DEMO-2']
   assert.ok(rows(store, empty.subjectId) <= 2)
   assert.equal(empty.counts.treatments, 0)
@@ -72,54 +71,6 @@ test('DEMO-2：只有 1 次指标、无治疗无测量无材料', () => {
   assert.equal(store.stagesFor(m.subjectId)[0].stage, 'newly_diagnosed')
 })
 
-test('DEMO-3：保乳 + SLNB，臂围差长期 0.2–0.4，不出现腋窝清扫', () => {
-  const store = openStore({ file: ':memory:' })
-  const m = seedDemo(store, 'DEMO-3')
-  const treatments = store.treatmentsFor(m.subjectId)
-  assert.equal(treatments.find((t) => t.kind === 'surgery').axillary_procedure, 'slnb')
-  assert.ok(!treatments.some((t) => t.axillary_procedure === 'alnd'))
-
-  const diffs = store.db.prepare(`SELECT MAX(derived_diff_num) AS d FROM measurement
-    WHERE subject_id = ? GROUP BY set_id`).all(m.subjectId).map((r) => r.d)
-  assert.ok(diffs.length >= 6)
-  for (const d of diffs) assert.ok(d >= 0.1 && d <= 0.5, `差值 ${d} 超出 0.2–0.4 画像`)
-})
-
-test('DEMO-4：双侧档案无法判患健侧时拒绝写四点位（不猜侧别）', () => {
-  const store = openStore({ file: ':memory:' })
-  const m = seedDemo(store, 'DEMO-4')
-  assert.equal(store.getSubject(m.subjectId).laterality, 'bilateral')
-  assert.equal(store.latestArmDiff(m.subjectId), null)
-  assert.throws(
-    () => store.addArmSet({ subjectId: m.subjectId, measuredOn: '2026-09-30', points: [{ point: 'wrist', affected: 20, healthy: 18 }] }),
-    /未声明患侧/,
-  )
-  // 指标断线：ca153 两种方法，不能连线
-  const methods = store.db.prepare("SELECT DISTINCT lab_method FROM observation WHERE subject_id = ? AND metric_code = 'ca153'")
-    .all(m.subjectId).map((r) => r.lab_method).sort()
-  assert.deepEqual(methods, ['CLIA', 'ECLIA'])
-})
-
-test('DEMO-5：更正链两版、一份解析失败、一份待核对且冲突可见', () => {
-  const store = openStore({ file: ':memory:' })
-  const m = seedDemo(store, 'DEMO-5')
-
-  const weight = store.db.prepare(`SELECT record_id FROM observation WHERE subject_id = ?
-    AND metric_code = 'weight' AND observed_on = '2026-09-08' ORDER BY rowid DESC LIMIT 1`).get(m.subjectId)
-  assert.equal(store.recordHistory(weight.record_id).length, 2, '更正链应有两版')
-
-  const docs = store.db.prepare('SELECT * FROM document WHERE subject_id = ?').all(m.subjectId)
-  assert.equal(docs.length, 2)
-  assert.ok(docs.some((d) => d.status === 'parse_failed'))
-  const failed = docs.find((d) => d.status === 'parse_failed')
-  assert.equal(new ImportService(store).candidatesFor(failed.id).length, 0, '解析失败不得产生候选')
-
-  const draft = new ImportService(store).draftFor(m.subjectId)
-  const codes = draft.documents.flatMap((d) => d.candidates.flatMap((c) => c.issues.map((i) => i.code)))
-  assert.ok(codes.includes('conflict'))
-  assert.ok(codes.includes('unit_missing'))
-})
-
 test('同一套重复生成不翻倍（覆盖而非追加）', () => {
   const store = openStore({ file: ':memory:' })
   const first = seedDemo(store, 'DEMO-1')
@@ -148,8 +99,8 @@ test('清理只删 manifest 登记的那一套；名字像 demo 但没有 manife
 test('确定性：同一套两次生成，序列完全一致', () => {
   const a = openStore({ file: ':memory:' })
   const b = openStore({ file: ':memory:' })
-  const ma = seedDemo(a, 'DEMO-3')
-  const mb = seedDemo(b, 'DEMO-3')
+  const ma = seedDemo(a, 'DEMO-1')
+  const mb = seedDemo(b, 'DEMO-1')
   const series = (store, subjectId) => store.db.prepare(`SELECT metric_code, observed_on, value_num FROM observation
     WHERE subject_id = ? ORDER BY metric_code, observed_on, rowid`).all(subjectId)
   assert.deepEqual(series(a, ma.subjectId), series(b, mb.subjectId))

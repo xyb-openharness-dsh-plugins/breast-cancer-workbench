@@ -131,6 +131,7 @@ small{font-size:12px;color:var(--muted)}
 .notice.pink{background:var(--pink-soft);border-color:#f7dbe5;color:#7e3a51}
 .notice.warn{background:var(--warn-bg);border-color:#f3e2c4;color:#7d5a17}
 .notice.plain{background:#fbfaf6;border-color:#eee8dc;color:#6d6350}
+.notice.ok{background:#f1f8f3;border-color:#cfe6d5;color:#2f6b45}
 .help-box{background:#fbf9f6;border:1px dashed #e4d8c9;border-radius:12px;padding:12px 15px;font-size:12px;color:#6f6354;line-height:1.7;margin-top:16px}
 .small-note{font-size:11.5px;color:var(--muted);line-height:1.65;margin-top:10px}
 /* 解析失败的「技术信息」：默认折叠，不占视觉，但要能展开对照原文 */
@@ -416,6 +417,42 @@ dialog::backdrop{background:rgba(51,42,48,.35);backdrop-filter:blur(2px)}
 .profile-btn{width:100%;text-align:left;font:inherit;color:inherit;min-height:0;cursor:pointer;gap:9px}
 .profile-btn:hover{background:#ffe9f1;border-color:#f3c9d7}
 .profile .profile-caret{margin-left:auto;font-size:11px;color:var(--muted);flex:0 0 auto}
+
+/* ---------- v0.14: 多档案 + 资料初始化 ---------- */
+.profile-add{display:flex;align-items:center;justify-content:center;gap:5px;width:100%;min-height:34px;margin:-4px 0 14px;border:1px dashed #ecc9d6;border-radius:10px;background:#fff;color:var(--pink-deep);font:inherit;font-size:12px;font-weight:600;cursor:pointer}
+.profile-add:hover{background:#fff5f8;border-color:var(--pink-deep)}
+.intake-step{margin:0 0 8px;font-size:11px;color:var(--pink-deep);font-weight:600;letter-spacing:.04em}
+.intake-path{font-size:11px;color:var(--muted);word-break:break-all;background:#faf7f8;border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin-top:8px}
+.intake-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.intake-tree{display:grid;gap:6px;margin-top:10px}
+.intake-cat{border:1px solid var(--line);border-radius:10px;padding:9px 11px;background:#fff}
+.intake-cat-head{display:flex;justify-content:space-between;gap:10px;align-items:center}
+.intake-cat-head b{font-size:12.5px}
+.intake-cat-head span{font-size:10.5px;color:var(--muted)}
+.intake-file{display:flex;align-items:center;gap:8px;font-size:11.5px;padding:5px 0;border-top:1px dashed #eef0eb;margin-top:5px}
+.intake-file input{width:16px;height:16px;flex:0 0 auto}
+.intake-file .name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.intake-file .tag{margin-left:auto;font-size:10px;border-radius:999px;padding:1px 7px;background:#f6eef2;color:var(--pink-deep);flex:0 0 auto}
+.intake-file .tag.bad{background:#fdecec;color:#b54848}
+.intake-file .tag.ok{background:#eef7ef;color:#3c7a4a}
+.intake-doc{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid var(--line);border-radius:10px;padding:9px 11px;margin-top:6px;background:#fff}
+.intake-doc b{font-size:12px;display:block}
+.intake-doc span{font-size:10.5px;color:var(--muted)}
+.intake-progress,.intake-result{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:10px 0;background:#fff}
+.intake-progress-head{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:12px}
+.intake-progress-head b{font-size:12.5px}
+.intake-progress-head span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:11px}
+.intake-bar{height:6px;border-radius:999px;background:#f4e8ee;margin:8px 0 6px;overflow:hidden}
+.intake-bar i{display:block;height:100%;background:var(--pink-deep);border-radius:999px;transition:width .2s ease}
+.intake-result-item{display:flex;align-items:flex-start;gap:8px;font-size:11.5px;padding:6px 0;border-top:1px dashed #eef0eb;margin-top:6px}
+.intake-result-item .ok{color:#3c7a4a;font-weight:700}
+.intake-result-item .bad{color:#b54848;font-weight:700}
+.intake-result-item .name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:0 1 auto}
+.intake-result-item .reason{margin-left:auto;max-width:62%;text-align:right;color:var(--muted)}
+.intake-last{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:11.5px;color:var(--muted);margin:8px 0}
+.intake-confirm p{margin:0 0 6px;font-size:12.5px}
+.intake-confirm ul{margin:4px 0 10px;padding-left:20px;font-size:12px;line-height:1.7}
+.intake-confirm .notice{margin:8px 0}
 
 .cfg-tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);padding-bottom:2px;overflow-x:auto}
 .cfg-tabs button{border:0;background:transparent;padding:9px 13px;border-radius:9px 9px 0 0;font-size:13px;color:var(--muted);min-height:38px;white-space:nowrap}

@@ -407,6 +407,10 @@ export function settingsBody(tab = 'store', pendingPath = '') {
   const st = S.state
   const consent = Boolean(st?.settings?.mineruConsent)
   const mineru = st?.settings?.mineru ?? {}
+  const sourceLabel = mineru.source === 'bundled-public' ? '随包公益 Key'
+    : mineru.source === 'env:MINERU_TOKEN' ? '环境变量 MINERU_TOKEN'
+      : mineru.source === '.secrets/mineru.json' ? '本机 .secrets/mineru.json'
+        : mineru.source ?? '未配置'
   if (tab === 'parse') {
     return `<div class="choice ${consent ? 'on' : 'off'}" role="group" aria-label="解析方式">
       <div class="choice-head"><b>MinerU 解析</b>${pill(consent ? '已启用' : '未启用', consent ? 'green' : 'yellow')}</div>
@@ -416,14 +420,20 @@ export function settingsBody(tab = 'store', pendingPath = '') {
       ${consent ? '' : '<p class="small-note" style="color:var(--warn)">未勾选前不会上传，也不会调用 MinerU。</p>'}
     </div>
     <div class="choice" style="margin-top:14px">
-      <div class="choice-head"><b>API Token</b><span class="status-inline">${mineru.configured ? esc(mineru.source === 'env' ? '环境变量 MINERU_TOKEN' : '本机 .secrets/mineru.json') : '未配置'}</span></div>
-      ${mineru.configured ? `<div class="token-row"><code class="masked">${esc(mineru.masked ?? '****')}</code><span class="small-note">只显示后 4 位，不提供“查看完整值”</span></div>` : '<p class="small-note">还没有 Token。没有 Token 时，PDF/图片解析会明确报错并保留原件，不会假装解析成功。</p>'}
+      <div class="choice-head"><b>API Token</b><span class="status-inline">${mineru.configured ? esc(sourceLabel) : '未配置'}</span></div>
+      <div class="token-row">
+        <input id="mineru-token" type="password" autocomplete="off" spellcheck="false"
+          placeholder="${mineru.configured ? '已配置，粘贴新 Token 可覆盖' : '粘贴 sk-... 开头的 Token'}">
+        ${btn('保存 Token', 'save-mineru-token', 'primary')}
+        ${mineru.configured && mineru.source === '.secrets/mineru.json' ? btn('清除本机 Token', 'clear-mineru-token', 'text-button') : ''}
+      </div>
+      <p class="small-note" style="margin-top:8px">当前：${mineru.configured ? esc(mineru.masked ?? '****') : '未配置'} · 来源：${esc(sourceLabel)}</p>
       <div class="notice plain" style="margin:12px 0 0">
         <b>Token 放在哪</b>
-        <p style="margin:6px 0 0">唯一持久来源是本机 <code>.secrets/mineru.json</code>（权限 600、已在 .gitignore 里）；环境变量 <code>MINERU_TOKEN</code> 只作临时覆盖。不写进患者库、不进日志、不进导出。</p>
-        <p style="margin:6px 0 0">配置方式：按 <code>docs/MINERU.md</code> 写那个文件；临时排查时才用 <code>MINERU_TOKEN=sk-… npm start</code>。</p>
+        <p style="margin:6px 0 0">保存后会写入本机 <code>.secrets/mineru.json</code>（权限 600、已在 .gitignore 里）；环境变量 <code>MINERU_TOKEN</code> 只作临时覆盖。不写进患者库、不进日志、不进导出。</p>
+        <p style="margin:6px 0 0">随包公益 Key 只在没有本机 Token 和环境变量时兜底；你保存自己的 Token 会优先使用。</p>
       </div>
-      <div class="notice warn" style="margin-top:12px">Token 在这里不做在线校验：MinerU 没有无副作用的校验端点，拿解析请求去试会消耗额度并留下空批次。首次解析时若 401，会在材料上写明原因，原件保留可重试。</div>
+      <div class="notice warn" style="margin-top:12px">Token 不做在线校验：MinerU 没有无副作用的校验端点。首次解析若 401，会在材料上写明原因，原件保留可重试。</div>
     </div>`
   }
   if (tab === 'about') {
@@ -469,9 +479,13 @@ export function profileBody() {
   const subjects = S.state?.subjects ?? []
   const demos = S.state?.demos ?? []
   return `<div class="notice warn">演示画像用<b>模拟数据</b>覆盖边界情况，不是真实病历。切换档案只换当前查看的档案，不改数据。</div>
+  <div class="intake-actions" style="margin:10px 0 4px">
+    ${btn('＋ 新建档案', 'new-subject', 'primary')}
+    ${btn('资料初始化', 'intake-open', 'soft')}
+  </div>
   <h3 style="font-size:13px">本机档案</h3>
   ${subjects.map((s) => `<button class="profile-row ${s.active ? 'on' : ''}" data-action="use-subject" data-id="${s.id}" aria-pressed="${s.active}">
-    <div><b>${esc(s.displayName)}${s.demo ? ` · ${esc(s.demo.id)}` : ''}</b><p>${esc({ left: '左', right: '右', bilateral: '双侧', unknown: '患侧未声明' }[s.laterality] ?? '')}${s.demo ? ` · ${esc(s.demo.label)}` : ' · 真实档案'}</p></div>
+    <div><b>${esc(s.displayName)}${s.demo ? ` · ${esc(s.demo.id)}` : ''}</b><p>${esc(s.roleLabel ?? '身份未填写')} · ${esc({ left: '左', right: '右', bilateral: '双侧', unknown: '患侧未声明' }[s.laterality] ?? '')}${s.demo ? ` · ${esc(s.demo.label)}` : ' · 真实档案'}</p></div>
     <span class="profile-caret">${s.active ? '当前' : '切换'}</span></button>`).join('')}
   <div class="divider"></div>
   <h3 style="font-size:13px">演示画像</h3>

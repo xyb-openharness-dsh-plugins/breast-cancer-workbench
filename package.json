@@ -37,6 +37,9 @@
     "test": "node --disable-warning=ExperimentalWarning --test test/*.test.mjs",
     "check": "node scripts/build-version.mjs --check && node scripts/check-syntax.mjs && node scripts/check-schema.mjs && node scripts/check-wording.mjs && node scripts/check-secrets.mjs && node scripts/build-client.mjs --check && node scripts/build-primer-data.mjs --check && node --disable-warning=ExperimentalWarning --test test/*.test.mjs && node scripts/check-package.mjs && node scripts/check-version.mjs",
     "pack:check": "npm pack --dry-run",
+    "mineru:public": "node scripts/inject-mineru-public.mjs",
+    "mineru:public:clean": "node scripts/remove-mineru-public.mjs",
+    "pack:release": "node scripts/inject-mineru-public.mjs && npm pack && node scripts/remove-mineru-public.mjs",
     "probe:primer": "node scripts/probe-disease-primer.mjs --url http://127.0.0.1:8124/prototypes/v0.4/index.html",
     "check:primer-links": "node scripts/check-primer-links.mjs",
     "primer:sync": "node scripts/build-primer-data.mjs"

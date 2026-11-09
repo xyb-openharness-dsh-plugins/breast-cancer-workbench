@@ -7,9 +7,9 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { deflateRawSync } from 'node:zlib'
-import { MineruClient, resolveToken, maskToken, MINERU_MODEL_DEFAULT, MINERU_MODEL_FALLBACK, modelFallbackWorthy } from '../dsh/mineru.js'
+import { MineruClient, resolveToken, maskToken, saveMineruToken, clearMineruToken, MINERU_MODEL_DEFAULT, MINERU_MODEL_FALLBACK, modelFallbackWorthy } from '../dsh/mineru.js'
 import { readZip, ZipError } from '../lib/zip.js'
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, writeFileSync, rmSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -136,11 +136,50 @@ test('Token 优先级：显式 > 私密文件 > 环境；都没有就明确报�
   assert.deepEqual(resolveToken({ env: { MINERU_TOKEN: 'sk-env' }, secretFile: join(dir, 'nope.json') }), { token: 'sk-env', source: 'env:MINERU_TOKEN' })
   assert.deepEqual(resolveToken({ env: {}, secretFile: secret }), { token: 'sk-from-file', source: '.secrets/mineru.json' })
 
-  assert.throws(() => resolveToken({ env: {}, secretFile: join(dir, 'nope.json') }), (error) => {
+  assert.throws(() => resolveToken({ env: {}, secretFile: join(dir, 'nope.json'), publicFile: join(dir, 'nope-public.json') }), (error) => {
     assert.equal(error.code, 'NO_TOKEN')
     assert.match(error.message, /MINERU_TOKEN/)
     return true
   })
+  rmSync(dir, { recursive: true, force: true })
+})
+
+test('随包公益 Key 只在显式/文件/env 都没有时兜底', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'pinky-mineru-public-'))
+  const publicFile = join(dir, 'mineru-public.json')
+  writeFileSync(publicFile, JSON.stringify({ token: 'sk-bundled' }))
+
+  assert.deepEqual(
+    resolveToken({ env: {}, secretFile: join(dir, 'nope.json'), publicFile }),
+    { token: 'sk-bundled', source: 'bundled-public' },
+  )
+  // 显式 Token 仍然优先，随包 Key 不会盖住本机配置
+  assert.deepEqual(
+    resolveToken({ token: 'sk-explicit', env: {}, secretFile: join(dir, 'nope.json'), publicFile }),
+    { token: 'sk-explicit', source: 'explicit' },
+  )
+  rmSync(dir, { recursive: true, force: true })
+})
+
+test('保存/清除本机 Token：原子写入、600 权限、不回显原文', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'pinky-mineru-save-'))
+  const secretFile = join(dir, '.secrets', 'mineru.json')
+  const publicFile = join(dir, 'nope-public.json')
+
+  saveMineruToken('sk-test-1234567890abcdef', { secretFile })
+  assert.equal(statSync(secretFile).mode & 0o777, 0o600, 'Token 文件必须是 600')
+  assert.deepEqual(
+    resolveToken({ env: {}, secretFile, publicFile }),
+    { token: 'sk-test-1234567890abcdef', source: '.secrets/mineru.json' },
+  )
+  assert.throws(() => saveMineruToken('not-a-token', { secretFile }), (error) => error.code === 'BAD_TOKEN')
+
+  clearMineruToken({ secretFile })
+  assert.throws(
+    () => resolveToken({ env: {}, secretFile, publicFile }),
+    (error) => error.code === 'NO_TOKEN',
+  )
+  clearMineruToken({ secretFile }) // 文件已不存在：幂等，不报错
   rmSync(dir, { recursive: true, force: true })
 })
 

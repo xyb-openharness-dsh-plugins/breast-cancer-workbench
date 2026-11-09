@@ -282,6 +282,7 @@ function documentsTable() {
         <td class="cand-actions">
           ${busy ? '<span class="small-note"><span class="spin"></span>解析中（云端一般 10–30 秒）</span>' : canParse ? btn(doc.status === 'parse_failed' ? '重试' : '解析', 'parse-doc', 'source-link', `data-id="${doc.id}"`) : ''}
           ${doc.pendingCandidates ? go('看草稿', 'records', '整理草稿 / 核对', 'source-link') : ''}
+          ${doc.status === 'parsed' ? btn('解析文本', 'doc-parsed-text', 'source-link', `data-id="${doc.id}"`) : ''}
           ${btn('原文', 'doc-text', 'source-link', `data-id="${doc.id}"`)}
         </td>
       </tr>`

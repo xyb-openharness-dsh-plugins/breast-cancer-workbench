@@ -39,11 +39,14 @@ function setupPage(error = null) {
         <img src="assets/brand/pinkypal-mark-96.png" width="52" height="52" alt="小粉宝标识" style="border-radius:14px;border:1px solid var(--line)">
         <div><strong style="font-size:20px;letter-spacing:1.5px">小粉宝</strong><span style="display:block;font-size:11px;color:var(--muted)">PinkyPal · 陪你慢慢来</span></div>
       </div>
-      <h1>先选一个资料目录</h1>
-      <p>原件、解析出的文本与数据库都放在你自己选的目录里。工作台<b>不会</b>在默认位置、用户主目录或桌面根目录静默新建文件夹，也不会读别的目录。</p>
+      <h1>先建一个资料目录</h1>
+      <p>原件、解析出的文本与数据库都放在你自己的目录里。工作台<b>不会</b>在用户主目录或桌面根目录静默新建文件夹，也不会读别的目录。</p>
       ${error ? `<div class="notice warn" style="margin-top:14px"><b>没能打开：</b>${esc(error)}</div>` : ''}
-      <div style="margin-top:16px">
-        <span class="form-label">资料目录的完整路径</span>
+      <div class="form-actions" style="margin-top:16px">${btn('一键创建默认资料目录', 'prepare-default', 'primary')}</div>
+      <p class="small-note" style="margin-top:6px">默认位置：<code>~/Documents/小粉宝工作台</code>。点一下会建好分类子目录（病理、影像、化验、出院小结等），不需要压缩或整理成模板。</p>
+      <div class="divider"></div>
+      <div style="margin-top:10px">
+        <span class="form-label">或者自己指定资料目录</span>
         <div class="path-row"><input id="ws-path" placeholder="/Users/你的名字/Documents/PinkyPal" spellcheck="false" autofocus>
           ${btn('本机选择…', 'pick-native', 'soft')}
           <label class="checkbox-line" style="margin:0"><input type="checkbox" id="ws-create" checked><span>不存在就新建</span></label></div>
@@ -109,15 +112,32 @@ function paintTop() {
   }
   const subject = st?.subject
   if ($('#profile-avatar')) $('#profile-avatar').textContent = (subject?.displayName ?? '我').slice(0, 1)
-  if ($('#profile-name')) $('#profile-name').textContent = subject ? `${subject.displayName}的资料` : '我的资料'
+  if ($('#profile-name')) {
+    const name = subject?.displayName ?? ''
+    $('#profile-name').textContent = !name || name === '我' || name === '我的' ? '我的资料' : `${name}的资料`
+  }
   if ($('#profile-meta')) {
     const demo = st?.subjects?.find((s) => s.id === subject?.id)?.demo
-    $('#profile-meta').textContent = demo ? `${demo.id} · 模拟数据` : (subject ? `${subject.lateralityLabel}侧 · 本机档案` : '本机档案')
+    $('#profile-meta').textContent = demo
+      ? `${demo.id} · 模拟数据`
+      : (subject ? `${subject.roleLabel ?? '身份未填写'} · 本机档案` : '本机档案')
   }
   const crumb = $('#breadcrumb')
   if (crumb) crumb.textContent = PAGES.find((p) => p[0] === S.page)?.[1] ?? '看板'
   $$('.ver-chip').forEach((el) => { el.textContent = `v${S.version}` })
   const av = $('#app-version'); if (av) av.textContent = `v${S.version}`
+}
+
+function onboardingPage() {
+  return `<div class="setup"><div class="card">
+    <h1>先建一个档案</h1>
+    <p>资料目录已经就绪：<code>${esc(S.state?.dir ?? '')}</code></p>
+    <p>同一个资料库里可以放多位家人的档案；切换档案只换当前查看的人，不会混数据。</p>
+    <div class="form-actions" style="margin-top:16px">${btn('新建档案', 'new-subject', 'primary')}</div>
+    <p class="small-note">新建后可以一键创建分类目录，把病历文件放进去，再回工作台检查导入。</p>
+    <div class="divider"></div>
+    <p class="small-note">只想先看看效果？${btn('加载一套模拟数据', 'load-demo-showcase', 'text-link text-button')}（模拟数据，不是真实病历）</p>
+  </div></div>`
 }
 
 export function rerender() {
@@ -127,6 +147,10 @@ export function rerender() {
   if (!main) return
   if (!S.ready) {
     main.innerHTML = setupPage()
+    return
+  }
+  if (!S.state?.subject) {
+    main.innerHTML = `<div class="page-enter">${onboardingPage()}</div>`
     return
   }
   const render = RENDER[S.page] ?? dashboard
@@ -425,8 +449,12 @@ function resourceInfoModal() {
   btn('返回', 'close', 'primary'))
 }
 
-function settingsModal(tab = 'store') {
+function settingsModal(tab = 'store', note = null, tone = 'ok') {
+  const noteHtml = note
+    ? `<div class="notice ${tone}" style="margin-top:12px">${tone === 'ok' ? '✓ ' : ''}${esc(note)}</div>`
+    : ''
   openModal('设置', `<div class="cfg-tabs" role="tablist" aria-label="设置分区">${CFG_TABS.map(([id, label]) => `<button role="tab" aria-selected="${tab === id}" data-settings-tab="${id}">${label}</button>`).join('')}</div>
+    ${noteHtml}
     <div style="margin-top:16px">${settingsBody(tab)}</div>`, btn('完成', 'close', 'primary'))
 }
 
@@ -472,6 +500,240 @@ async function renderDirView(path) {
   })
 }
 
+/* ---------- 多档案与资料初始化 ---------- */
+
+const intakeState = { view: 'list', tree: null, selected: new Set(), parsing: null, lastResults: null }
+function resetIntakeState() {
+  intakeState.view = 'list'
+  intakeState.tree = null
+  intakeState.selected = new Set()
+  intakeState.parsing = null
+  intakeState.lastResults = null
+}
+
+function newSubjectModal() {
+  // 第一个档案默认填「我的」；后续新建给家人才留空。用户仍可改。
+  const defaultName = (S.state?.subjects?.length ?? 0) === 0 ? '我的' : ''
+  openModal('新建档案', `
+    <div class="notice plain">同一个资料库里可以放多位家人的档案；切换档案只换当前查看的人，不改数据。</div>
+    <div class="form-grid" style="margin-top:14px">
+      <label class="field"><span class="form-label">姓名（必填）</span><input id="ns-name" maxlength="40" value="${esc(defaultName)}" placeholder="例如：我的 / 张阿姨" autofocus></label>
+      <label class="field"><span class="form-label">使用者身份（必填）</span>
+        <select id="ns-role"><option value="">请选择</option><option value="patient">患者本人</option><option value="caregiver">家属 / 照护者</option></select>
+      </label>
+      <label class="field"><span class="form-label">出生年份（可选）</span><input id="ns-birth" inputmode="numeric" maxlength="4" placeholder="1958"></label>
+      <label class="field"><span class="form-label">患侧（可选）</span>
+        <select id="ns-laterality"><option value="unknown">未声明</option><option value="left">左</option><option value="right">右</option><option value="bilateral">双侧</option></select>
+      </label>
+    </div>
+    <p class="small-note" style="margin-top:10px">创建后会切到这个档案，并引导你创建资料目录、放病历、导入。</p>`,
+    `${btn('取消', 'close', 'soft')}${btn('创建并继续', 'create-subject', 'primary')}`)
+}
+
+const LOCAL_TEXT_RE = /\.(txt|md|markdown|csv)$/i
+const isLocalDoc = (doc) => LOCAL_TEXT_RE.test(doc.filename ?? '') || String(doc.mime ?? '').startsWith('text/')
+const mineruReady = () => Boolean(S.state?.settings?.mineruConsent && S.state?.settings?.mineru?.configured)
+const unparsedDocs = () => (S.data.documents?.list ?? []).filter((doc) => doc.reviewState === 'unparsed')
+
+function listIntakeBody() {
+  const tree = intakeState.tree
+  const docs = S.data.documents?.list ?? []
+  const subject = S.state?.subject
+  const max = S.state?.intake?.maxUploadBatch ?? 3
+  const categories = tree?.categories ?? (S.state?.intake?.categories ?? []).map((c) => ({ ...c, files: [], count: 0 }))
+
+  const filesHtml = categories.map((category) => {
+    const files = category.files ?? []
+    return `<div class="intake-cat">
+      <div class="intake-cat-head"><b>${esc(category.label ?? category.dir)}</b><span>${esc(category.hint ?? '')}</span></div>
+      ${files.length ? files.map((file) => `<label class="intake-file">
+        <input type="checkbox" data-intake-select="${esc(file.relPath)}" ${intakeState.selected.has(file.relPath) ? 'checked' : ''} ${!file.supported || file.duplicate ? 'disabled' : ''}>
+        <span class="name">${esc(file.name)}</span>
+        ${!file.supported ? '<span class="tag bad">不支持</span>' : file.duplicate ? '<span class="tag">已导入过</span>' : '<span class="tag ok">可导入</span>'}
+      </label>`).join('') : '<p class="small-note" style="margin-top:5px">这个目录里还没有文件</p>'}
+    </div>`
+  }).join('')
+
+  const parsing = intakeState.parsing
+  const last = intakeState.lastResults
+  const resultFor = (id) => parsing?.items?.find((item) => item.id === id) ?? last?.items?.find((item) => item.id === id) ?? null
+
+  const docsHtml = docs.length ? docs.map((doc) => {
+    const item = resultFor(doc.id)
+    const current = parsing?.currentId === doc.id
+    const stateLabel = current ? '解析中…'
+      : item ? (item.ok ? (item.inserted ? `解析成功 · ${item.inserted} 项待核对` : '解析成功 · 没有抽到候选') : '解析失败')
+        : doc.reviewState === 'unparsed' ? '待解析'
+          : doc.reviewState === 'pending' ? `待核对 ${doc.pendingCandidates} 项`
+            : doc.reviewState === 'reviewed' ? '已核对' : '解析失败'
+    const tagClass = current ? '' : item ? (item.ok ? 'ok' : 'bad') : doc.reviewState === 'parse_failed' ? 'bad' : doc.reviewState === 'unparsed' ? '' : 'ok'
+    const tagText = current ? '解析中' : item ? (item.ok ? '成功' : '失败') : doc.reviewState === 'unparsed' ? '待解析' : doc.reviewState === 'pending' ? '待核对' : doc.reviewState === 'reviewed' ? '已核对' : '失败'
+    return `<div class="intake-doc">
+      <div><b>${esc(doc.filename)}</b><span>${esc(kindLabel(doc.kind))} · ${stateLabel}</span></div>
+      <span class="tag ${tagClass}">${tagText}</span>
+    </div>`
+  }).join('') : '<p class="small-note" style="margin-top:6px">还没有导入资料。</p>'
+
+  const unparsed = docs.filter((doc) => doc.reviewState === 'unparsed').length
+  const pending = docs.filter((doc) => doc.reviewState === 'pending').length
+
+  const lastHtml = last ? `<div class="intake-last"><span>上次解析：成功 ${last.ok} 份，失败 ${last.failed} 份</span>${btn('查看结果', 'intake-show-result', 'text-button')}</div>` : ''
+
+  return `
+    <p class="intake-step">档案：${esc(subject?.displayName ?? '')} · ${esc(subject?.roleLabel ?? '')}</p>
+    <div class="intake-path">${esc(S.state?.dir ?? '')}</div>
+    <div class="notice plain" style="margin-top:10px">把病历文件放进对应分类目录，或直接上传（单次最多 ${max} 个）。不需要压缩、不需要改名。</div>
+    <div class="intake-actions">
+      ${btn(tree ? '重新建 / 补齐目录' : '一键创建分类目录', 'intake-prepare', 'soft')}
+      ${btn('打开文件夹', 'intake-open-folder', 'soft')}
+      ${btn('检查我放进去的文件', 'intake-scan', 'primary')}
+      ${btn('直接上传文件', 'intake-upload', 'soft')}
+    </div>
+    <input type="file" id="intake-file" multiple accept=".pdf,.jpg,.jpeg,.png,.heic,.webp,.doc,.docx,.txt,.md,.csv,.xls,.xlsx" style="display:none">
+    ${tree ? `<div class="intake-tree">${filesHtml}</div>
+      <div class="intake-actions">${btn(`导入勾选的文件（${intakeState.selected.size}）`, 'intake-import', 'primary')}</div>` : ''}
+    <div class="divider"></div>
+    <p class="intake-step">已导入的资料（${docs.length}）</p>
+    ${lastHtml}
+    ${docsHtml}
+    ${docs.length ? `<div class="intake-actions">
+      ${unparsed ? btn(parsing ? '正在解析…' : `开始解析（${unparsed} 份）`, 'intake-parse-all', 'primary', parsing ? 'disabled' : '') : ''}
+      ${pending ? btn(`去核对（${pending} 份待核对）`, 'intake-review', 'soft') : ''}
+    </div>` : ''}
+    <p class="small-note" style="margin-top:10px">解析优先在本机做文本抽取；扫描件/图片需要 MinerU 时，会先问你是否允许上传云端。解析失败的原件会保留，可重试或手动补录。</p>`
+}
+
+/* 资料初始化的三个单一主题视图：确认解析 / 解析中 / 解析结果。
+ * 不另开窗口：同一个 dialog 内切换 view，返回和“去核对”不会叠两层弹窗。 */
+
+function confirmIntakeBody(docs) {
+  const local = docs.filter(isLocalDoc)
+  const remote = docs.filter((doc) => !isLocalDoc(doc))
+  const ready = mineruReady()
+  return `
+    <p class="intake-step">确认解析</p>
+    <div class="intake-confirm">
+      <p>将解析 <b>${docs.length}</b> 份资料：</p>
+      <ul>
+        <li>本机文本抽取：<b>${local.length}</b> 份（快，不上传）</li>
+        <li>MinerU 云端解析：<b>${remote.length}</b> 份（扫描件/图片/Office，可能较慢）</li>
+      </ul>
+      ${remote.length && !ready ? '<div class="notice warn">MinerU 还没配置或未授权，这些资料会解析失败。可以先只解析本机文本，或去设置里启用。</div>' : ''}
+      <p class="small-note">解析只读原件，不改文件；失败的原件会保留，可重试或手动补录。</p>
+    </div>
+    <div class="intake-actions">
+      ${btn('返回资料列表', 'intake-back', 'soft')}
+      ${local.length ? btn(`只解析本机文本（${local.length} 份）`, 'intake-parse-local', 'soft') : ''}
+      ${btn(`开始解析（${docs.length} 份）`, 'intake-parse-confirm', 'primary')}
+      ${remote.length && !ready ? btn('去设置 MinerU', 'intake-open-mineru', 'soft') : ''}
+    </div>`
+}
+
+function parsingIntakeBody() {
+  const parsing = intakeState.parsing
+  if (!parsing) return listIntakeBody()
+  const pct = Math.round((parsing.done / Math.max(1, parsing.total)) * 100)
+  return `
+    <p class="intake-step">正在解析</p>
+    <div class="intake-progress">
+      <div class="intake-progress-head"><b>${Math.min(parsing.done + 1, parsing.total)}/${parsing.total}</b><span>${esc(parsing.current || '准备中…')}</span></div>
+      <div class="intake-bar"><i style="width:${pct}%"></i></div>
+      <p class="small-note">本机文本通常几秒；扫描件/图片走 MinerU 时可能需要十几秒到几分钟。可以先返回列表，解析会在后台继续。</p>
+    </div>
+    <div class="intake-actions">${btn('返回资料列表', 'intake-back', 'soft')}</div>`
+}
+
+function resultIntakeBody() {
+  const last = intakeState.lastResults
+  if (!last) return listIntakeBody()
+  const needsMineru = Boolean(last.items.some((item) => !item.ok && ['CONSENT_REQUIRED', 'NO_TOKEN'].includes(item.code)))
+  return `
+    <p class="intake-step">解析结果</p>
+    <div class="intake-result">
+      <div class="intake-progress-head"><b>成功 ${last.ok} 份，失败 ${last.failed} 份</b>${last.failed ? btn('重试失败项', 'intake-retry-failed', 'soft') : ''}</div>
+      ${last.items.map((item) => `<div class="intake-result-item">
+        <span class="${item.ok ? 'ok' : 'bad'}">${item.ok ? '✓' : '✕'}</span>
+        <span class="name">${esc(item.filename)}</span>
+        <span class="reason">${item.ok ? (item.inserted ? `${item.inserted} 项待核对` : '没有抽到候选，可手动补录') : esc(item.error)}</span>
+      </div>`).join('')}
+      ${needsMineru ? `<div class="intake-actions">${btn('去设置 MinerU', 'intake-open-mineru', 'soft')}</div>` : ''}
+    </div>`
+}
+
+function intakeBody() {
+  const view = intakeState.view ?? 'list'
+  if (view === 'confirm') return confirmIntakeBody(unparsedDocs())
+  if (view === 'parsing') return parsingIntakeBody()
+  if (view === 'result') return resultIntakeBody()
+  return listIntakeBody()
+}
+
+function intakeModal() {
+  const view = intakeState.view ?? 'list'
+  let foot = `${btn('关闭', 'close', 'soft')}${btn('去核对', 'intake-review', 'primary')}`
+  if (view === 'confirm') foot = ''
+  else if (view === 'parsing') foot = btn('关闭', 'close', 'soft')
+  else if (view === 'result') foot = `${btn('返回资料列表', 'intake-back', 'soft')}${btn('去核对', 'intake-review', 'primary')}`
+  openModal('资料初始化', intakeBody(), foot)
+  $('#dialog-body')?.querySelectorAll('[data-intake-select]').forEach((el) => {
+    el.checked = intakeState.selected.has(el.dataset.intakeSelect)
+  })
+}
+
+/**
+ * 逐份解析：每份开始/结束都刷新弹窗，让用户看到“正在解析第几份、成功几份、失败几份”。
+ * 不在循环里 refresh 全量读模型（15 个接口 × 每份），只在最后刷一次。
+ */
+async function parseIntakeDocuments(docs) {
+  if (intakeState.parsing) return
+  intakeState.lastResults = null
+  intakeState.view = 'parsing'
+  intakeState.parsing = { total: docs.length, done: 0, current: '', currentId: null, items: [] }
+  const paint = () => { if ($('#dialog')?.open) intakeModal() }
+  paint()
+  for (const doc of docs) {
+    intakeState.parsing.current = doc.filename
+    intakeState.parsing.currentId = doc.id
+    paint()
+    try {
+      const result = await api(`/api/documents/${doc.id}/parse`, { method: 'POST', body: {} })
+      intakeState.parsing.items.push({
+        id: doc.id,
+        filename: doc.filename,
+        ok: true,
+        inserted: result.inserted ?? 0,
+        warnings: result.warnings ?? [],
+        engine: result.engine ?? null,
+      })
+    } catch (error) {
+      intakeState.parsing.items.push({
+        id: doc.id,
+        filename: doc.filename,
+        ok: false,
+        error: error.message,
+        code: error.code ?? null,
+      })
+    }
+    intakeState.parsing.done += 1
+    paint()
+  }
+  const items = intakeState.parsing.items
+  const wasParsingView = intakeState.view === 'parsing'
+  intakeState.parsing = null
+  intakeState.lastResults = {
+    items,
+    ok: items.filter((item) => item.ok).length,
+    failed: items.filter((item) => !item.ok).length,
+  }
+  // 用户中途返回列表时不强行把他拽回结果页；列表会留一个“查看结果”入口。
+  intakeState.view = wasParsingView ? 'result' : 'list'
+  await refresh()
+  rerender()
+  if ($('#dialog')?.open) intakeModal()
+  const { ok, failed } = intakeState.lastResults
+  toast(`解析完成：成功 ${ok} 份${failed ? `，失败 ${failed} 份（原因见弹窗）` : ''}`)
+}
+
 const actions = {
   // 原生目录选择器：macOS choose folder 对话框；不支持或失败时退回网页浏览。
   'pick-native': async () => {
@@ -503,11 +765,177 @@ const actions = {
   settings: () => settingsModal('store'),
   // 解析失败卡片上的「去填 Token」：直接落在 MinerU 那一页，不用用户自己找 tab。
   'open-mineru-settings': () => settingsModal('parse'),
+
+  'save-mineru-token': async () => {
+    const token = inputValue('#mineru-token').trim()
+    if (!token) return settingsModal('parse', '先粘贴 Token', 'warn')
+    try {
+      const result = await api('/api/settings/mineru-token', { method: 'POST', body: { token } })
+      if (S.state) S.state.settings = result.settings
+      await refresh()
+      rerender()
+      settingsModal('parse', 'Token 已保存；下一次解析立即使用')
+    } catch (error) {
+      // 失败也放在弹窗顶部：页面级 toast 会被原生 dialog 的 top layer 盖住。
+      settingsModal('parse', `保存失败：${error.message}`, 'warn')
+    }
+  },
+
+  'clear-mineru-token': () => {
+    openModal('清除本机 Token',
+      '<p>清除后，如果环境变量和随包公益 Key 也没有，扫描件/图片会解析失败；原件不会丢，可随时重新填。</p>',
+      `${btn('取消', 'close', 'soft')}${btn('确认清除', 'confirm-clear-mineru-token', 'primary')}`)
+  },
+
+  'confirm-clear-mineru-token': async () => {
+    try {
+      const result = await api('/api/settings/mineru-token', { method: 'POST', body: { clear: true } })
+      if (S.state) S.state.settings = result.settings
+      await refresh()
+      rerender()
+      settingsModal('parse', '已清除本机 Token；当前回落到环境变量或随包公益 Key')
+    } catch (error) {
+      settingsModal('parse', `清除失败：${error.message}`, 'warn')
+    }
+  },
+
   about: () => settingsModal('about'),
   help: helpModal,
   session: sessionModal,
   profile: profileModal,
   'switch-profile': profileModal,
+
+  // 一键建默认资料目录：不需要用户懂路径、压缩或模板。
+  'prepare-default': async () => {
+    toast('正在创建默认资料目录…')
+    const result = await guarded(() => api('/api/intake/prepare', { method: 'POST', body: {} }))
+    if (!result) return
+    resetBoot()
+    await boot()
+    rerender()
+    toast(result.created ? '资料目录已创建' : '资料目录已就绪')
+    if (!S.state?.subject) newSubjectModal()
+  },
+
+  'new-subject': () => { resetIntakeState(); newSubjectModal() },
+
+  'create-subject': async () => {
+    const displayName = inputValue('#ns-name').trim()
+    const role = inputValue('#ns-role')
+    if (!displayName) return toast('请填写姓名')
+    if (!role) return toast('请选择使用者身份：患者本人或家属')
+    const birthYear = inputValue('#ns-birth').trim()
+    if (birthYear && !/^\d{4}$/.test(birthYear)) return toast('出生年份写 4 位数字，或留空')
+    const result = await guarded(() => api('/api/subjects', {
+      method: 'POST',
+      body: {
+        displayName,
+        role,
+        birthYear: birthYear || null,
+        laterality: inputValue('#ns-laterality') || 'unknown',
+      },
+    }))
+    if (!result) return
+    resetBoot()
+    await boot()
+    resetIntakeState()
+    closeModal()
+    rerender()
+    toast(`已创建「${displayName}」的档案`)
+    intakeModal()
+  },
+
+  'intake-open': () => intakeModal(),
+
+  'intake-prepare': async () => {
+    const result = await guarded(() => api('/api/intake/prepare', { method: 'POST', body: {} }))
+    if (!result) return
+    intakeState.tree = result.tree
+    intakeModal()
+    toast('分类目录已创建')
+  },
+
+  'intake-open-folder': async () => {
+    try {
+      await api('/api/intake/open-folder', { method: 'POST', body: {} })
+      toast('已打开资料文件夹')
+    } catch (error) {
+      toast(error.message)
+    }
+  },
+
+  'intake-scan': async () => {
+    const result = await guarded(() => api('/api/intake/scan', { method: 'POST', body: {} }))
+    if (!result) return
+    intakeState.tree = result
+    intakeState.selected = new Set()
+    for (const category of result.categories) {
+      for (const file of category.files) {
+        if (file.supported && !file.duplicate) intakeState.selected.add(file.relPath)
+      }
+    }
+    intakeModal()
+    toast(result.total ? `找到 ${result.supported} 个可导入文件` : '目录里还没有文件')
+  },
+
+  'intake-import': async () => {
+    const files = [...intakeState.selected].map((relPath) => ({ relPath }))
+    if (!files.length) return toast('先勾选要导入的文件')
+    const result = await guarded(() => api('/api/intake/import', { method: 'POST', body: { files } }))
+    if (!result) return
+    resetIntakeState()
+    intakeModal()
+    toast(`已导入 ${result.imported} 份${result.duplicates ? `，跳过重复 ${result.duplicates} 份` : ''}${result.failed ? `，失败 ${result.failed} 份` : ''}`)
+  },
+
+  'intake-upload': () => { $('#intake-file')?.click() },
+
+  'intake-parse-all': () => {
+    const docs = unparsedDocs()
+    if (!docs.length) return toast('没有待解析的资料')
+    // 先给一份“本机几份 / MinerU 几份”的确认，不直接开跑。
+    intakeState.view = 'confirm'
+    intakeModal()
+  },
+
+  'intake-parse-confirm': async () => {
+    const docs = unparsedDocs()
+    if (!docs.length) return toast('没有待解析的资料')
+    await parseIntakeDocuments(docs)
+  },
+
+  'intake-parse-local': async () => {
+    const docs = unparsedDocs().filter(isLocalDoc)
+    if (!docs.length) return toast('没有可本机解析的文本资料')
+    await parseIntakeDocuments(docs)
+  },
+
+  'intake-back': () => {
+    intakeState.view = 'list'
+    intakeModal()
+  },
+
+  'intake-show-result': () => {
+    intakeState.view = 'result'
+    intakeModal()
+  },
+
+  'intake-retry-failed': async () => {
+    const failedIds = new Set((intakeState.lastResults?.items ?? []).filter((item) => !item.ok).map((item) => item.id))
+    const docs = (S.data.documents?.list ?? []).filter((doc) => failedIds.has(doc.id))
+    if (!docs.length) return toast('没有需要重试的资料')
+    await parseIntakeDocuments(docs)
+  },
+
+  'intake-open-mineru': () => {
+    closeModal()
+    settingsModal('parse')
+  },
+
+  'intake-review': () => {
+    closeModal()
+    navigate('records', '整理草稿 / 核对')
+  },
 
   'load-demo-showcase': async () => {
     toast('正在加载完整示例…')
@@ -529,6 +957,7 @@ const actions = {
     if (result) {
       resetBoot()
       await boot()
+      resetIntakeState()
       closeModal()
       rerender()
       toast('已切换档案')
@@ -720,12 +1149,45 @@ const actions = {
   },
 
   'doc-text': async (el) => {
-    const result = await guarded(() => api(`/api/documents/${el.dataset.id}/text`))
+    const result = await guarded(() => api(`/api/documents/${el.dataset.id}/text?source=original`))
     if (!result) return
     openModal(`原文 · ${result.filename}`, result.available
       ? `${codeBlock(result.text || '（这份文本是空的）')}<p class="small-note">这是原件本身的文本，没有经过改写。</p>`
       : `<div class="notice">${esc(result.reason)}</div><p class="small-note">原件位置（相对资料目录）：<code>${esc(result.storagePath)}</code></p>`,
     btn('关闭', 'close', 'primary'))
+  },
+
+  'doc-parsed-text': async (el) => {
+    const id = el.dataset.id
+    const result = await guarded(() => api(`/api/documents/${id}/text?source=parsed`))
+    if (!result) return
+    if (result.available) {
+      openModal(`解析文本 · ${result.filename}`,
+        `${codeBlock(result.text || '（解析结果为空）')}<p class="small-note">这是 MinerU / 本机解析出的文本，仅供核对，不是诊断意见。</p>`,
+        btn('关闭', 'close', 'primary'))
+      return
+    }
+    openModal(`解析文本 · ${result.filename}`,
+      `<div class="notice warn">${esc(result.reason)}</div><p class="small-note">重新解析会重新调用 MinerU（或本机文本抽取），并把识别文本保存到本机，之后就能查看。</p>`,
+      `${btn('重新解析', 'doc-reparse', 'primary', `data-id="${id}"`)}${btn('关闭', 'close', 'soft')}`)
+  },
+
+  'doc-reparse': async (el) => {
+    const id = el.dataset.id
+    closeModal()
+    S.busy[`parse:${id}`] = true
+    rerender()
+    try {
+      await api(`/api/documents/${id}/parse`, { method: 'POST', body: { force: true } })
+      await refresh()
+      rerender()
+      toast('重新解析完成；现在可以查看解析文本')
+    } catch (error) {
+      toast(`重新解析失败：${error.message}`)
+    } finally {
+      S.busy[`parse:${id}`] = false
+      rerender()
+    }
   },
 
   'cand-accept': async (el) => {
@@ -820,10 +1282,16 @@ const actions = {
   },
 
   'toggle-consent': async (el) => {
-    await guarded(() => api('/api/settings', { method: 'POST', body: { mineruConsent: Boolean(el.checked) } }))
-    toast(el.checked ? '已开启 MinerU 云端解析；TXT / MD / CSV 仍走本机' : '已关闭；未勾选前不会上传文件')
-    if ($('#dialog')?.open) settingsModal('parse')
-    else rerender()
+    try {
+      const result = await api('/api/settings', { method: 'POST', body: { mineruConsent: Boolean(el.checked) } })
+      if (S.state && result.settings) S.state.settings = result.settings
+      await refresh()
+      rerender()
+      // 反馈放在设置弹窗顶部：原生 dialog 在 top layer，页面级 toast 会被盖住。
+      settingsModal('parse', el.checked ? '已开启 MinerU 云端解析；TXT / MD / CSV 仍走本机' : '已关闭；未勾选前不会上传文件')
+    } catch (error) {
+      settingsModal('parse', `设置失败：${error.message}`, 'warn')
+    }
   },
 
   'set-workspace': async () => {
@@ -892,13 +1360,47 @@ document.addEventListener('click', (event) => {
   if (!el) return
   const fn = actions[el.dataset.action]
   if (fn) {
-    event.preventDefault()
+    // 复选框/单选框的默认行为就是切换状态；在这里 preventDefault 会让它永远点不动。
+    if (!el.matches('input[type="checkbox"], input[type="radio"]')) event.preventDefault()
     Promise.resolve(fn(el)).catch((error) => toast(error.message))
   }
 })
 
 document.addEventListener('change', (event) => {
   const el = event.target
+  if (el.id === 'intake-file') {
+    const files = [...(el.files ?? [])]
+    if (!files.length) return
+    const max = S.state?.intake?.maxUploadBatch ?? 3
+    if (files.length > max) toast(`一次最多上传 ${max} 个文件；多的请放进资料目录`)
+    void (async () => {
+      let ok = 0
+      let failed = 0
+      for (const file of files.slice(0, max)) {
+        try {
+          await uploadDocument(file, { kind: guessKind(file.name) })
+          ok += 1
+        } catch (error) {
+          failed += 1
+          toast(`${file.name}：${error.message}`)
+        }
+      }
+      el.value = ''
+      await refresh()
+      rerender()
+      intakeModal()
+      if (ok) toast(`已上传 ${ok} 个文件${failed ? `，失败 ${failed} 个` : ''}`)
+    })()
+    return
+  }
+  if (el.dataset.intakeSelect) {
+    const relPath = el.dataset.intakeSelect
+    if (el.checked) intakeState.selected.add(relPath)
+    else intakeState.selected.delete(relPath)
+    const importBtn = document.querySelector('[data-action="intake-import"]')
+    if (importBtn) importBtn.textContent = `导入勾选的文件（${intakeState.selected.size}）`
+    return
+  }
   if (el.dataset.metric) {
     const code = el.dataset.metric
     if (el.checked) {
