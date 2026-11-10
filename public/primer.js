@@ -15,7 +15,7 @@
 
   var PANEL_ID = 'disease-primer'
   var HASH = '#disease-primer'
-  var state = { open: false, trigger: null, scrollY: 0, lastPointer: null, el: null }
+  var state = { open: false, trigger: null, triggerKey: null, scrollY: 0, lastPointer: null, el: null }
 
   var esc = function (v) {
     return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
@@ -27,6 +27,20 @@
 
   /* ---------- 触发按钮 ---------- */
   function findTrigger() { return document.querySelector('[data-primer-open]') }
+
+  /* 首页的第二个入口在 #main 里，关闭时 hashchange 会让 app.render() 重建节点。
+     记住一个稳定标识，旧节点脱离 DOM 后仍能把焦点送回同一条入口。 */
+  function triggerKey(el) {
+    return el && el.getAttribute ? (el.getAttribute('data-primer-entry') || '') : ''
+  }
+  function locateTrigger(key) {
+    if (state.trigger && document.contains(state.trigger)) return state.trigger
+    if (key) {
+      var byKey = document.querySelector('[data-primer-open][data-primer-entry="' + key + '"]')
+      if (byKey) return byKey
+    }
+    return findTrigger()
+  }
 
   function mount() {
     var d = data()
@@ -191,6 +205,7 @@
     if (!t || t === document.body || t === document.documentElement) t = null
     if (!t && state.lastPointer && state.lastPointer.closest) t = state.lastPointer.closest('[data-primer-open],button,a')
     state.trigger = t || findTrigger()
+    state.triggerKey = triggerKey(state.trigger)
     state.scrollY = global.scrollY || document.documentElement.scrollTop || 0
     state.open = true
     el.hidden = false
@@ -206,12 +221,24 @@
     state.open = false
     if (state.el) state.el.hidden = true
     document.documentElement.classList.remove('dp-lock')
-    if (state.trigger) {
-      state.trigger.setAttribute('aria-expanded', 'false')
-      try { state.trigger.focus({ preventScroll: true }) } catch (_) { try { state.trigger.focus() } catch (__) {} }
+    var trigger = state.trigger
+    var key = state.triggerKey
+    if (trigger) trigger.setAttribute('aria-expanded', 'false')
+    /* history 后退触发的重渲染会把首页入口换成新节点：单次 focus 必然落空。
+       多轮补焦，且只在焦点仍停在 body 时接管，避免抢走用户刚点的别处。 */
+    var restoreFocus = function () {
+      var active = document.activeElement
+      if (active && active !== document.body && document.contains(active)) return
+      var t = locateTrigger(key)
+      if (!t) return
+      t.setAttribute('aria-expanded', 'false')
+      try { t.focus({ preventScroll: true }) } catch (_) { try { t.focus() } catch (__) {} }
     }
+    restoreFocus()
+    ;[60, 200, 500].forEach(function (ms) { setTimeout(restoreFocus, ms) })
     if (state.scrollY) { try { global.scrollTo(0, state.scrollY) } catch (_) {} }
     state.trigger = null
+    state.triggerKey = null
   }
 
   function close() {

@@ -196,6 +196,15 @@
         return workbenchOwnsSession(id) ? id : null
       }
 
+      /* 会话创建：优先默认工作区；无可用工作区时传 undefined，让宿主按其流程提示选目录。
+         不要用 ensureSession({})：customFrame 下它不保证归属，也不会自动挂载面板。 */
+      async function createOwnedSession() {
+        const service = bridge?.desktopWorkbenches
+        let workspaceId
+        try { workspaceId = service?.defaultWorkspace?.()?.workspaceId } catch { workspaceId = undefined }
+        return service.newSession(workspaceId)
+      }
+
       /* ---------------- 原生草稿：只填入，不发送 ---------------- */
 
       function fillDraft(sessionId, prompt) {
@@ -273,7 +282,7 @@
         const [sessionTick, bumpSessionTick] = React.useReducer((n) => n + 1, 0)
         const ownedId = React.useMemo(() => ownedSession(), [sessionTick])
         const hasConversation = Boolean(ownedId)
-        const canOpenSession = typeof bridge?.desktopWorkbenches?.ensureSession === 'function'
+        const canOpenSession = typeof bridge?.desktopWorkbenches?.newSession === 'function'
 
         // 8 秒内没有 onLoad 就当作没起来：宁可给一个能重试的提示，也不留一块白板。
         // onLoad 成功后必须清掉这个定时器——否则页面加载完 8 秒后整个面板被换成
@@ -372,8 +381,12 @@
             } catch { /* 拿不到目录也照样调起 */ }
             // folder 只在拿到真实业务目录时才传：ensureSession 收到空 folder 会直接失败，
             // 那比"没传"更糟（用户看到的是点了没反应）。没选目录时让宿主走它自己的默认。
-            const id = await bridge.desktopWorkbenches.ensureSession(dir ? { folder: dir } : {})
-            rememberDraft({ sessionId: id, prompt: prompt || onboardingPrompt(dir) })
+            const id = await createOwnedSession()
+                        if (!id) {
+              setNote('已取消资料目录选择，没有创建会话。可以再次点击「AI 对话」重试。')
+              return
+            }
+rememberDraft({ sessionId: id, prompt: prompt || onboardingPrompt(dir) })
             flushDraft()
             setPaneOpen(true)
             setNote('会话已就绪：草稿已填入右侧输入框，按回车发送')
