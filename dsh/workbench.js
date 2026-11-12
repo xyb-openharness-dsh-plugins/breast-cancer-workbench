@@ -15,6 +15,7 @@ import { constants as FS } from 'node:fs'
 import { basename, extname, isAbsolute, join, resolve, sep } from 'node:path'
 import { homedir } from 'node:os'
 import { openStore } from './store.js'
+import { searchTrials } from './trials.js'
 import { createImportService, ImportError, assertMedicalDate, DOCUMENT_KINDS } from './import.js'
 import { extractCandidates } from './labparse.js'
 import { resolveToken, maskToken, MINERU_MODEL_DEFAULT, MINERU_MODEL_FALLBACK, modelFallbackWorthy } from './mineru.js'
@@ -509,17 +510,17 @@ export class Workbench {
       treatments: treatmentList(this.#store, subjectId),
       treatmentKinds: TREATMENT_KIND_LABELS,
       diagnoses: diagnosisList(this.#store, subjectId),
-      // 试验线索一期只做界面演示：不连真实登记库，也不生成匹配结论
-      trials: {
-        connected: false,
-        note: '一期没有接入临床试验登记库；这里不显示真实研究，也不做入组资格判断。',
-        sample: {
-          id: 'SAMPLE-A',
-          title: '示例条目（虚构，不是真实研究）',
-          status: '未接入真实信息',
-          criteria: '参与条件以登记原文与研究中心答复为准',
-        },
-      },
+      /* 试验线索：接 CT.gov 实时快照（随包分发）。只做检索线索，不做入组资格判断。 */
+      trials: (() => {
+        const snap = searchTrials({ limit: 20 })
+        return {
+          connected: snap.available,
+          note: snap.available ? snap.honestyNote : snap.reason,
+          snapshotDate: snap.snapshotDate || null,
+          candidatePool: snap.candidatePool || null,
+          records: snap.records || [],
+        }
+      })(),
     }
   }
 

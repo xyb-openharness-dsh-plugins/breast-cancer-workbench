@@ -233,12 +233,49 @@ function clinicalPathology() {
     <div class="empty"><h3>分子 / 遗传材料尚未载入</h3><p>此状态不表示结果阴性，也不提示必须检测。这一版的入库映射只覆盖检验与治疗字段。</p></div></div>`
 }
 
+/* 临床试验线索（35 号四段）：
+   段1 建档：只列已确认入库的诊断字段；未核候选不参与。
+   段2 检索：在随包快照里按关键词筛（不是全库扫描，卡头写口径）。
+   段3 匹配：快照不含入排条件原文 → 每条一律「待确认」，不给百分数。
+   段4 呈现/收藏：可把条目加进问题清单（零副作用）。 */
+function trialKeyword() {
+  try { return String(globalThis.__PINKY_TRIAL_KW__ || '') } catch { return '' }
+}
+
 function clinicalTrials() {
-  return `<div class="notice">以下是虚构交互条目，不是临床试验信息。一期没有接入登记平台或真实研究数据。</div>
-  <section class="card"><div class="card-head"><h2>研究线索的查看方式</h2>${pill('示例 · 虚构', 'grey')}</div>
-    <h3>乳腺癌相关研究 · 示例条目 A</h3>
-    <p>只演示「详情 → 资料对照 → 核实问题」的路径。研究名称、中心、状态与条件均未填入真实信息，也不做入组资格判断。</p>
-    <div class="actions" style="margin-top:18px">${btn('查看示例详情', 'trial-detail')}${go('用我的资料对照', 'clinical', '资料对照', 'soft')}</div></section>`
+  const t = S.data?.clinical?.trials || { connected: false, note: '未接入' }
+  if (!t.connected) {
+    return `<div class="notice">${esc(t.note || '本机快照不可用')}</div>
+    <section class="card"><div class="card-head"><h2>临床试验线索</h2>${pill('未接入', 'grey')}</div>
+      <p class="small-note">随包快照缺失时如实说明，不用"没有研究"冒充"没查到"。</p></section>`
+  }
+  const kw = trialKeyword().trim().toLowerCase()
+  const all = t.records || []
+  const rows = kw ? all.filter((r) => [r.title, r.registryId, ...(r.interventions || [])].join(' ').toLowerCase().includes(kw)) : all
+  const pool = t.candidatePool || {}
+  const dx = d().clinical?.diagnoses || []
+  return `<div class="notice">${esc(t.note || '')} 登记状态未核实；「查不到」不等于「没有研究」。</div>
+  <section class="card"><div class="card-head"><h2>参与匹配的已确认字段</h2>${pill('建档', 'grey')}</div>
+    <p class="small-note">只有已确认入库的诊断字段参与匹配；未核候选、未检测、报告未提供都不进池，也不会被当成阴性去填。</p>
+    ${dx.length
+      ? `<ul class="small-note" style="margin:6px 0 0 18px">${dx.slice(0, 8).map((x) => `<li>${esc(longDate(x.notedOn))} · ${esc(x.histology ?? '组织学未写')} · ER ${statusWord(x.er)} / PR ${statusWord(x.pr)} / HER2 ${statusWord(x.her2)}</li>`).join('')}</ul>`
+      : '<p class="small-note">还没有已确认的诊断字段。先去「病理分子」把报告原文逐条核对确认。</p>'}
+  </section>
+  <section class="card"><div class="card-head"><h2>检索登记线索</h2>${pill(`快照 ${esc(t.snapshotDate || '日期未记')}`, 'grey')}</div>
+    <p class="small-note">候选池口径：已载 ${pool.loaded ?? all.length} 条 · 本次返回 ${rows.length} 条（上限 ${pool.limit ?? 20}）· <b>不是全库扫描</b>。</p>
+    <div class="path-row"><input id="trial-kw" placeholder="关键词：药名 / 登记号 / 干预" value="${esc(trialKeyword())}">${btn('检索', 'trial-search', 'primary')}</div>
+    ${rows.length ? '' : '<div class="empty"><h3>这一组条件下没有命中</h3><p>查不到 ≠ 没有研究：清空关键词再看，或直接问医生。</p></div>'}
+    ${rows.map((r) => `<div class="row"><div>
+      <b>${esc(r.registryId)} · ${esc(r.title || '')}</b>
+      <p class="small-note">${esc(r.status || '状态未记')} · ${(r.phase || []).join(', ') || '阶段未记'} · ${esc(r.sponsor || '申办方未记')} · 快照 ${esc(r.retrievedAt || '')}</p>
+      <ul class="small-note" style="margin:4px 0 0 18px">
+        <li>? <b>待确认</b> — 条件类别：入排条件（快照未含原文）</li>
+        <li>记录里是：见上方已确认字段 · 条件要求：见登记原文</li>
+      </ul>
+      <p class="small-note">分层：<b>需补充信息</b>；符合度：<b>暂无可对照项（不编百分数）</b>。这不是入组资格，也不代表效果。</p>
+      <div class="actions">${btn('收藏这条线索', 'add-trial-question', 'soft')}${r.sourceUrl ? `<a class="soft" href="${esc(r.sourceUrl)}" target="_blank" rel="noopener noreferrer">打开登记原文 ↗</a>` : ''}</div>
+    </div>${pill(esc(r.status || '未核实'), 'grey')}</div>`).join('')}
+  </section>`
 }
 
 function clinicalCompare() {

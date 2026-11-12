@@ -27,4 +27,6 @@ node scripts/check-schema.mjs
 6. 每次迁移一个文件，`schema_version.version` 与文件名前缀一致（`migrate.js` 会强制）。
 7. 新迁移写完后，把新文件与新的 sha256 追加到本表，再跑 `npm run check`。
 
+| `0003_subject_is_demo.sql` | 407b33fcaa4540f4af3031e607d010f67340b8fc0aaef43b76f4d0455291e9e1 | 2026-11-13 | 新增 `subject.is_demo`（默认 0；demo 播种写 1）——演示档案与真实档案分开标记 |
+
 依据：[SCHEMA-SPEC §8](../docs/SCHEMA-SPEC.md)、[DEV-PLAN](../docs/DEV-PLAN.md) M1。

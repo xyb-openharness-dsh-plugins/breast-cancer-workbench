@@ -1,3 +1,18 @@
+## 0.13.7 — 2026-11-13
+
+三缺口批量补齐（本仓原为 B 型，闸门三项全红但**其中两项是闸门假红**）：
+
+- **A 资料目录**：实现本来就是完整的——`pick-native` 由宿主侧 `POST /api/fs/pick` 弹系统面板，`dsh/host.js` 读 `config.root`，拒绝清单也有。此前判红是**闸门只认客户端 `pickDirectory` 与只扫 `dsh/index.js`**；闸门已修（也认服务端选择器、扫整个 `dsh/`）。
+- **B 临床试验（真补齐）**：
+  - 新增 `assets/reference-data/breast-trials-2026-11-13/`：**真实** CT.gov API v2 快照 100 条（`trials.jsonl` + `manifest.json`，含 retrieved_at、query、record_count），随包分发；
+  - 新增 `dsh/trials.js`（关键词/状态/阶段筛选 + 候选池口径 + honestyNote）；
+  - `clinical().trials` 从"示例条目 A"改为读真快照；
+  - 试验线索页改 35 号四段：建档（只列已确认诊断字段）→ 检索（快照内关键词，卡头写"已载 N / 返回 M / 不是全库扫描"）→ 匹配（每条 `? 待确认 — 快照未含入排原文`、分层"需补充信息"、**不给百分数**）→ 呈现/收藏（加入问题清单）。
+- **C 新建患者**：加 `schema/0003_subject_is_demo.sql`（`subject.is_demo`，默认 0）+ `createSubject({ isDemo })` 写 1/0 + demo 播种标 `isDemo:true` + `listUserSubjects/deleteUserSubject`（demo 不可删）；冻结合同已追加 0003 与 sha256。
+- 校验：三闸门全绿；`npm run check` 全绿（含 schema 冻结、单测、wording、package）；迁移相关断言与版本字面量（index.html / state.js / workbench.json）同步 0.13.7。
+- 装机：0.13.7 已装，包内快照与 `dsh/trials.js` 均在。
+- 未验证：界面加载与点击（需重开 Desktop 后人工走查）。
+
 ## 0.13.6（2026-11-11，AI 对话面板激活修复）
 
 - 会话判定改用宿主归属 `ownedSession()`（`ownsSession(currentSession())`），不再用 `Boolean(conversation)`（customFrame 下没会话也会传隐藏容器 → 判断恒为真 → 点了没反应）。

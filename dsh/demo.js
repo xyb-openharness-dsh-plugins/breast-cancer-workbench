@@ -125,7 +125,7 @@ function addExtras(store, subjectId, { views = [], questions = [], tasks = [], c
 /* ---------------- 各套画像 ---------------- */
 
 function buildDemo1(store, { workspaceId, rnd }) {
-  const subject = store.createSubject({
+  const subject = store.createSubject({ isDemo: true,
     workspaceId, displayName: '林女士（模拟）', role: 'patient',
     birthYear: 1972, sex: 'female', laterality: 'left', menopause: 'post',
   })
@@ -238,7 +238,7 @@ function buildDemo1(store, { workspaceId, rnd }) {
 }
 
 function buildDemo2(store, { workspaceId, rnd }) {
-  const subject = store.createSubject({
+  const subject = store.createSubject({ isDemo: true,
     workspaceId, displayName: '新确诊（模拟）', role: 'patient',
     birthYear: 1985, sex: 'female', laterality: 'right', menopause: 'pre',
   })

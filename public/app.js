@@ -1245,6 +1245,12 @@ const actions = {
   'privacy-check': privacyModal,
   'agent-preview': agentPreviewModal,
   'trial-detail': trialDetailModal,
+  /* 试验线索关键词检索：快照只在本机，前端过滤即可（不联网、不限次）。 */
+  'trial-search': () => {
+    const el = document.querySelector('#trial-kw')
+    try { globalThis.__PINKY_TRIAL_KW__ = el ? el.value : '' } catch { /* 隐私模式写不进去也不挡使用 */ }
+    rerender()
+  },
   'resource-info': resourceInfoModal,
 
   pin: (el) => {

@@ -58,17 +58,30 @@ export class Store {
     return row
   }
 
-  createSubject({ workspaceId, displayName, role = 'patient', birthYear = null, sex = 'unknown', laterality = 'unknown', menopause = null }) {
+  createSubject({ workspaceId, displayName, role = 'patient', birthYear = null, sex = 'unknown', laterality = 'unknown', menopause = null, isDemo = false }) {
     if (!workspaceId) throw new Error('缺少 workspaceId：档案必须挂在明确的工作区下')
     const row = {
       id: newId('sub'), workspace_id: workspaceId, role, display_name: displayName,
-      birth_year: birthYear, sex, laterality, menopause, created_at: nowIso(),
+      birth_year: birthYear, sex, laterality, menopause, created_at: nowIso(), is_demo: isDemo ? 1 : 0,
     }
+    /* is_demo 直接写字面量 0/1：用户在界面新建的是 0（真实档案），demo 播种是 1。
+       两者共存、互不覆盖；demo 档案不可删。 */
     this.db.prepare(`INSERT INTO subject
-      (id, workspace_id, role, display_name, birth_year, sex, laterality, menopause, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      (id, workspace_id, role, display_name, birth_year, sex, laterality, menopause, created_at, is_demo)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ${row.is_demo})`)
       .run(row.id, row.workspace_id, row.role, row.display_name, row.birth_year, row.sex, row.laterality, row.menopause, row.created_at)
     return row
+  }
+
+  /** 用户建的档案（is_demo=0），供"切换档案"列表；demo 单列。 */
+  listUserSubjects(workspaceId) {
+    return this.db.prepare('SELECT id, display_name, role, is_demo, created_at FROM subject WHERE workspace_id = ? AND is_demo = 0 ORDER BY created_at DESC').all(workspaceId)
+  }
+
+  /** demo 档案不允许删除：只有 is_demo=0 才会被删掉。 */
+  deleteUserSubject(id) {
+    const info = this.db.prepare('DELETE FROM subject WHERE id = ? AND is_demo = 0').run(String(id || ''))
+    return { deleted: Number(info?.changes ?? 0) > 0 ? id : null, reason: Number(info?.changes ?? 0) > 0 ? undefined : '不存在或演示档案不可删除' }
   }
 
   getSubject(id) {

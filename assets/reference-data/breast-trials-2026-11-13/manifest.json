@@ -1,0 +1,8 @@
+{
+  "title": "乳腺癌相关临床研究登记（CT.gov 实时快照）",
+  "source": "ClinicalTrials.gov API v2",
+  "query": "cond=breast cancer",
+  "retrieved_at": "2026-11-12",
+  "record_count": 100,
+  "note": "登记状态未核实；入排条件以登记原文与研究团队为准。本快照只做检索线索，不做入组资格判断。"
+}

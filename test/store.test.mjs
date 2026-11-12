@@ -27,10 +27,10 @@ test('迁移把 25 张表、27 个索引建出来，README 说明不能算数', 
 test('迁移幂等：第二次执行不再建表；已执行文件被改过会被拦下', () => {
   const db = new DatabaseSync(':memory:')
   const first = migrate(db)
-  assert.deepEqual(first.executed, ['0001_initial.sql', '0002_candidate_dates.sql'])
+  assert.deepEqual(first.executed, ['0001_initial.sql', '0002_candidate_dates.sql', '0003_subject_is_demo.sql'])
   const second = migrate(db)
   assert.deepEqual(second.executed, [])
-  assert.equal(second.applied.length, 2)
+  assert.equal(second.applied.length, 3)  // 0001 + 0002 + 0003
 
   db.prepare("UPDATE schema_version SET checksum = 'deadbeef' WHERE version = 1").run()
   assert.throws(() => migrate(db), /冻结后被改动/)
@@ -38,7 +38,7 @@ test('迁移幂等：第二次执行不再建表；已执行文件被改过会�
 })
 
 test('迁移文件按编号排序，命名不合规直接报错', () => {
-  assert.deepEqual(migrationFiles(), ['0001_initial.sql', '0002_candidate_dates.sql'])
+  assert.deepEqual(migrationFiles(), ['0001_initial.sql', '0002_candidate_dates.sql', '0003_subject_is_demo.sql'])
 })
 
 test('0002 补的两列存在、可空、格式受 CHECK 约束', () => {
@@ -195,10 +195,10 @@ test('老库升级：已执行 0001 的库只补 0002，不重建表、不改旧
   db.prepare("INSERT INTO workspace (id, name, schema_version, created_at) VALUES ('ws_old', '老库', '0001', '2026-10-17T00:00:00Z')").run()
 
   const result = migrate(db)
-  assert.deepEqual(result.executed, ['0002_candidate_dates.sql'], '只执行新增的迁移')
+  assert.deepEqual(result.executed, ['0002_candidate_dates.sql', '0003_subject_is_demo.sql'], '只执行新增的迁移')
   const cols = db.prepare('PRAGMA table_info(candidate)').all().map((c) => c.name)
   assert.ok(cols.includes('occurred_on'))
   assert.equal(db.prepare("SELECT name FROM workspace WHERE id='ws_old'").get().name, '老库', '旧数据原样保留')
-  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM schema_version').get().n, 2)
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM schema_version').get().n, 3)  // 0001 + 0002 + 0003
   db.close()
 })
